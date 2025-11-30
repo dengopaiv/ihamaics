@@ -338,6 +338,91 @@ def _rule_based_phonemes(input_text):
     return output
 
 
+# Number to words conversion tables
+_ONES = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
+         'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen',
+         'seventeen', 'eighteen', 'nineteen']
+_TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety']
+
+
+def _number_to_words(n):
+    """Convert integer to words. Handles 0 to 999,999,999."""
+    if n == 0:
+        return 'zero'
+    if n < 0:
+        return 'negative ' + _number_to_words(-n)
+
+    parts = []
+
+    # Millions
+    if n >= 1000000:
+        parts.append(_number_to_words(n // 1000000) + ' million')
+        n %= 1000000
+
+    # Thousands
+    if n >= 1000:
+        parts.append(_number_to_words(n // 1000) + ' thousand')
+        n %= 1000
+
+    # Hundreds
+    if n >= 100:
+        parts.append(_ONES[n // 100] + ' hundred')
+        n %= 100
+
+    # Tens and ones
+    if n >= 20:
+        if n % 10:
+            parts.append(_TENS[n // 10] + ' ' + _ONES[n % 10])
+        else:
+            parts.append(_TENS[n // 10])
+    elif n > 0:
+        parts.append(_ONES[n])
+
+    return ' '.join(parts)
+
+
+def expand_numbers(text):
+    """
+    Expand numbers in text to words.
+
+    Examples:
+        "60" -> "sixty"
+        "123" -> "one hundred twenty three"
+        "3.14" -> "three point one four"
+
+    Args:
+        text: Input text with numbers
+
+    Returns:
+        Text with numbers expanded to words
+    """
+    def replace_number(match):
+        num_str = match.group(0)
+
+        # Handle decimals
+        if '.' in num_str:
+            parts = num_str.split('.')
+            try:
+                int_part = int(parts[0]) if parts[0] else 0
+                result = _number_to_words(int_part) + ' point'
+                # Read decimal digits individually
+                for digit in parts[1]:
+                    result += ' ' + _number_to_words(int(digit))
+                return result
+            except ValueError:
+                return num_str
+
+        # Handle integers
+        try:
+            n = int(num_str)
+            return _number_to_words(n)
+        except ValueError:
+            return num_str
+
+    # Match integers and decimals
+    return re.sub(r'-?\d+\.?\d*', replace_number, text)
+
+
 def text_to_phonemes(input_text):
     """
     Convert text to phoneme string.

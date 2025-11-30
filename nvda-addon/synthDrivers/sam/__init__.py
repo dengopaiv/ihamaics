@@ -9,47 +9,39 @@ import tempfile
 import re
 import time
 
-from synthDriverHandler import SynthDriver, VoiceInfo, synthIndexReached, synthDoneSpeaking
+from synthDriverHandler import SynthDriver as BaseSynthDriver, VoiceInfo, synthIndexReached, synthDoneSpeaking
 from speech.commands import IndexCommand, CharacterModeCommand, LangChangeCommand, BreakCommand, PitchCommand, RateCommand, VolumeCommand
+from autoSettingsUtils.driverSetting import BooleanDriverSetting, NumericDriverSetting
 import nvwave
 import config
 from logHandler import log
 
 from .sam import SAM, VOICE_PRESETS, text_to_phonemes
+from .reciter import expand_numbers
 
 
-def split_for_streaming(text):
-    """Split text into words, numbers, and punctuation for streaming synthesis."""
-    # Split into words (with apostrophes), numbers, and everything else
-    tokens = re.findall(r"[A-Za-z']+|[0-9]+|[^A-Za-z0-9']+", text)
-    return [t for t in tokens if t.strip()]
+def split_sentences(text):
+    """Split text at sentence boundaries for streaming synthesis."""
+    # Split on .!? followed by space or end, keeping punctuation with sentence
+    sentences = re.split(r'(?<=[.!?])\s+', text)
+    return [s for s in sentences if s.strip()]
 
 
-# Pause durations in seconds for punctuation marks
-PUNCTUATION_PAUSES = {
-    '.': 0.3,   # Period - sentence end
-    '?': 0.3,   # Question mark
-    '!': 0.3,   # Exclamation
-    ',': 0.15,  # Comma - clause break
-    ';': 0.15,  # Semicolon
-    ':': 0.15,  # Colon
-}
-
-
-class SynthDriver(SynthDriver):
+class SynthDriver(BaseSynthDriver):
     """SAM (Software Automatic Mouth) synthesizer driver for NVDA."""
 
     name = "sam"
     description = "SAM (Software Automatic Mouth)"
 
     supportedSettings = (
-        SynthDriver.VoiceSetting(),
-        SynthDriver.RateSetting(),
-        SynthDriver.PitchSetting(),
-        SynthDriver.VolumeSetting(),
-        SynthDriver.NumericSetting("mouth", "Mouth", minStep=1),
-        SynthDriver.NumericSetting("throat", "Throat", minStep=1),
-        SynthDriver.BooleanSetting("singmode", "Sing mode"),
+        BaseSynthDriver.VoiceSetting(),
+        BaseSynthDriver.RateSetting(),
+        BaseSynthDriver.PitchSetting(),
+        BaseSynthDriver.InflectionSetting(),
+        BaseSynthDriver.VolumeSetting(),
+        NumericDriverSetting("mouth", "Mouth", availableInSettingsRing=True),
+        NumericDriverSetting("throat", "Throat", availableInSettingsRing=True),
+        BooleanDriverSetting("singmode", "Sing mode", defaultVal=False),
     )
 
     supportedCommands = {
@@ -74,6 +66,7 @@ class SynthDriver(SynthDriver):
         self._voice = "sam"
         self._rate = 50  # 0-100 scale
         self._pitch = 50  # 0-100 scale
+        self._inflection = 50  # 0-100 scale
         self._volume = 100  # 0-100 scale
         self._mouth = 50  # 0-100 scale, maps to 0-255
         self._throat = 50  # 0-100 scale, maps to 0-255
@@ -116,7 +109,8 @@ class SynthDriver(SynthDriver):
         self._sam.speed = max(20, min(255, speed))
 
         # Apply pitch: 0-100 maps to roughly 20-120
-        pitch = int(20 + (120 - 20) * self._pitch / 100)
+        # Invert so higher slider = higher pitch (SAM uses lower value = higher pitch)
+        pitch = int(20 + (120 - 20) * (100 - self._pitch) / 100)
         self._sam.pitch = max(0, min(255, pitch))
 
         # Mouth: 0-100 maps to 0-255
@@ -129,6 +123,9 @@ class SynthDriver(SynthDriver):
 
         # Singmode
         self._sam.singmode = self._singmode
+
+        # Inflection
+        self._sam.inflection = self._inflection
 
     def _getAvailableVoices(self):
         """Return available voices."""
@@ -144,6 +141,10 @@ class SynthDriver(SynthDriver):
     def _set_voice(self, value):
         if value in VOICE_PRESETS:
             self._voice = value
+            # Apply preset's mouth/throat as new base (convert 0-255 to 0-100)
+            preset = VOICE_PRESETS[value]
+            self._mouth = int(preset['mouth'] * 100 / 255)
+            self._throat = int(preset['throat'] * 100 / 255)
             self._update_sam_params()
 
     def _get_rate(self):
@@ -165,6 +166,13 @@ class SynthDriver(SynthDriver):
 
     def _set_volume(self, value):
         self._volume = max(0, min(100, value))
+
+    def _get_inflection(self):
+        return self._inflection
+
+    def _set_inflection(self, value):
+        self._inflection = max(0, min(100, value))
+        self._sam.inflection = self._inflection
 
     def _get_mouth(self):
         return self._mouth
@@ -270,38 +278,37 @@ class SynthDriver(SynthDriver):
             self._speaking = False
 
     def _speak_text(self, text):
-        """Synthesize and play text with word-level streaming and punctuation pauses."""
+        """Synthesize and play text with word-level streaming for low latency."""
         if not text.strip():
             return
 
         try:
-            # Split into words for streaming - each word synthesized and played immediately
-            tokens = split_for_streaming(text)
+            # Expand numbers to words first: "60" -> "sixty"
+            text = expand_numbers(text)
 
-            for token in tokens:
+            # Split into words for streaming
+            words = text.split()
+
+            for word in words:
                 if self._cancel_flag.is_set():
                     return
 
-                # Check if token is punctuation that needs a pause
-                stripped = token.strip()
-                if stripped in PUNCTUATION_PAUSES:
-                    # Wait for current audio to finish, then pause
-                    self._player.idle()
-                    time.sleep(PUNCTUATION_PAUSES[stripped])
+                # Skip empty words
+                word = word.strip()
+                if not word:
                     continue
 
-                # Skip non-word, non-number tokens (other punctuation like quotes, dashes)
-                if not re.match(r"[A-Za-z0-9']", token):
-                    continue
-
-                # Generate raw PCM audio for this word (8-bit unsigned, 22050 Hz mono)
-                audio_data = self._sam.speak(token)
+                # Generate audio for this word
+                audio_data = self._sam.speak(word)
                 if audio_data is None or len(audio_data) == 0:
                     continue
 
                 # Apply volume if needed
                 if self._volume < 100:
                     audio_data = self._apply_volume(audio_data)
+
+                # Apply fade in/out to avoid clicks at word boundaries
+                audio_data = self._fade_audio(audio_data)
 
                 # Feed audio to player immediately - starts playing while we synthesize next word
                 self._player.feed(audio_data, len(audio_data))
@@ -325,6 +332,29 @@ class SynthDriver(SynthDriver):
             signed = sample - 128
             scaled = int(signed * scale)
             result[i] = max(0, min(255, scaled + 128))
+        return bytes(result)
+
+    def _fade_audio(self, data, fade_ms=5):
+        """Apply fade in/out to avoid clicks at word boundaries."""
+        if len(data) < 20:
+            return data
+
+        samples = int(22050 * fade_ms / 1000)  # ~110 samples for 5ms
+        samples = min(samples, len(data) // 4)  # Don't fade more than 1/4 of audio
+
+        result = bytearray(data)
+
+        # Fade in (from silence at 128 to full)
+        for i in range(samples):
+            scale = i / samples
+            result[i] = int(128 + (result[i] - 128) * scale)
+
+        # Fade out (from full to silence at 128)
+        for i in range(samples):
+            idx = len(result) - 1 - i
+            scale = i / samples
+            result[idx] = int(128 + (result[idx] - 128) * scale)
+
         return bytes(result)
 
     def cancel(self):

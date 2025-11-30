@@ -99,7 +99,7 @@ def set_mouth_throat(mouth, throat):
     return freqdata
 
 
-def create_frames(pitch, tuples, frequency_data):
+def create_frames(pitch, tuples, frequency_data, inflection_amount=50):
     """
     CREATE FRAMES
 
@@ -111,10 +111,22 @@ def create_frames(pitch, tuples, frequency_data):
         pitch: Base pitch value
         tuples: List of [phoneme, length, stress] tuples
         frequency_data: Three frequency arrays from set_mouth_throat
+        inflection_amount: Inflection level 0-100 (0=monotone, 50=normal, 100=dramatic)
 
     Returns:
         [pitches, frequency, amplitude, sampled_consonant_flag]
     """
+    # Scale inflection values based on inflection_amount
+    # At 0: no inflection (monotone)
+    # At 50: normal inflection (default SAM behavior)
+    # At 100: dramatic inflection (double the effect)
+    scale = inflection_amount / 50.0
+    rising_inflection = int(RISING_INFLECTION * scale) if scale > 0 else 0
+    falling_inflection = int(FALLING_INFLECTION * scale) if scale > 0 else 0
+    # Clamp to valid range
+    rising_inflection = max(0, min(255, rising_inflection))
+    falling_inflection = max(0, min(255, falling_inflection))
+
     def add_inflection(inflection, pos, pitches):
         """Create a rising or falling inflection 30 frames prior to index."""
         end = pos
@@ -146,12 +158,14 @@ def create_frames(pitch, tuples, frequency_data):
         phoneme = tuples[i][0]
 
         if phoneme == PHONEME_PERIOD:
-            add_inflection(FALLING_INFLECTION, x, pitches)
+            add_inflection(falling_inflection, x, pitches)
         elif phoneme == PHONEME_QUESTION:
-            add_inflection(RISING_INFLECTION, x, pitches)
+            add_inflection(rising_inflection, x, pitches)
 
         # Get the stress amount (more stress = higher pitch)
+        # Scale by inflection amount (0 = no stress variation, 50 = normal, 100 = double)
         phase1 = STRESS_PITCH_TABLE[tuples[i][2]] if tuples[i][2] < len(STRESS_PITCH_TABLE) else 0
+        phase1 = int(phase1 * scale)
 
         # Get number of frames to write and copy from source to frames list
         frames = tuples[i][1]
@@ -273,7 +287,7 @@ def create_transitions(pitches, frequency, amplitude, tuples):
     return boundary
 
 
-def prepare_frames(phonemes, pitch, mouth, throat, singmode):
+def prepare_frames(phonemes, pitch, mouth, throat, singmode, inflection=50):
     """
     Prepare frames for rendering.
 
@@ -283,6 +297,7 @@ def prepare_frames(phonemes, pitch, mouth, throat, singmode):
         mouth: Mouth parameter (0-255)
         throat: Throat parameter (0-255)
         singmode: Boolean for sing mode
+        inflection: Inflection level 0-100 (0=monotone, 50=normal, 100=dramatic)
 
     Returns:
         [frame_count, frequency, pitches, amplitude, sampled_consonant_flag]
@@ -291,7 +306,7 @@ def prepare_frames(phonemes, pitch, mouth, throat, singmode):
 
     # Create frames from phonemes
     pitches, frequency, amplitude, sampled_consonant_flag = create_frames(
-        pitch, phonemes, freqdata
+        pitch, phonemes, freqdata, inflection
     )
 
     # Create transitions between phonemes
@@ -299,9 +314,12 @@ def prepare_frames(phonemes, pitch, mouth, throat, singmode):
 
     if not singmode:
         # Assign pitch contour - subtract F1 frequency to add variety
+        # Scale by inflection amount (0 = no F1 variation, 50 = normal, 100 = double)
+        scale = inflection / 50.0
         for i in range(len(pitches)):
             if i < len(frequency[0]):
-                pitches[i] = (pitches[i] - (frequency[0][i] >> 1)) & 0xFF
+                f1_adjust = int((frequency[0][i] >> 1) * scale)
+                pitches[i] = (pitches[i] - f1_adjust) & 0xFF
 
     # Rescale amplitude from decibels to linear scale
     for i in range(len(amplitude[0]) - 1, -1, -1):
@@ -499,7 +517,7 @@ def process_frames(output, frame_count, speed, frequency, pitches, amplitude, sa
             phase3 = 0
 
 
-def render(phonemes, pitch=64, mouth=128, throat=128, speed=72, singmode=False):
+def render(phonemes, pitch=64, mouth=128, throat=128, speed=72, singmode=False, inflection=50):
     """
     Main renderer function.
 
@@ -510,6 +528,7 @@ def render(phonemes, pitch=64, mouth=128, throat=128, speed=72, singmode=False):
         throat: Throat parameter (0-255, default 128)
         speed: Speed parameter (0-255, default 72)
         singmode: Enable sing mode (default False)
+        inflection: Inflection level 0-100 (0=monotone, 50=normal, 100=dramatic)
 
     Returns:
         Audio data as bytes (8-bit unsigned PCM, 22050 Hz mono)
@@ -521,7 +540,7 @@ def render(phonemes, pitch=64, mouth=128, throat=128, speed=72, singmode=False):
 
     # Prepare frames
     t, frequency, pitches, amplitude, sampled_consonant_flag = prepare_frames(
-        phonemes, pitch, mouth, throat, singmode
+        phonemes, pitch, mouth, throat, singmode, inflection
     )
 
     # Calculate buffer size

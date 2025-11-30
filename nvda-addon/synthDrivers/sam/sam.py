@@ -26,7 +26,7 @@ VOICE_PRESETS = {
 }
 
 
-def text_to_audio(text, pitch=64, speed=72, mouth=128, throat=128, singmode=False, phonetic=False):
+def text_to_audio(text, pitch=64, speed=72, mouth=128, throat=128, singmode=False, phonetic=False, inflection=50):
     """
     Convert text to audio data.
 
@@ -38,6 +38,7 @@ def text_to_audio(text, pitch=64, speed=72, mouth=128, throat=128, singmode=Fals
         throat: Throat parameter (0-255, default 128)
         singmode: Enable sing mode (default False)
         phonetic: If True, text is already phoneme data (default False)
+        inflection: Inflection level 0-100 (0=monotone, 50=normal, 100=dramatic)
 
     Returns:
         Audio data as bytes (8-bit unsigned PCM, 22050 Hz mono), or None on failure
@@ -56,11 +57,11 @@ def text_to_audio(text, pitch=64, speed=72, mouth=128, throat=128, singmode=Fals
         return None
 
     # Render audio
-    audio_data = render(phoneme_list, pitch, mouth, throat, speed, singmode)
+    audio_data = render(phoneme_list, pitch, mouth, throat, speed, singmode, inflection)
     return audio_data
 
 
-def text_to_wav(text, pitch=64, speed=72, mouth=128, throat=128, singmode=False, phonetic=False):
+def text_to_wav(text, pitch=64, speed=72, mouth=128, throat=128, singmode=False, phonetic=False, inflection=50):
     """
     Convert text to WAV file data.
 
@@ -72,11 +73,12 @@ def text_to_wav(text, pitch=64, speed=72, mouth=128, throat=128, singmode=False,
         throat: Throat parameter (0-255, default 128)
         singmode: Enable sing mode (default False)
         phonetic: If True, text is already phoneme data (default False)
+        inflection: Inflection level 0-100 (0=monotone, 50=normal, 100=dramatic)
 
     Returns:
         WAV file data as bytes, or None on failure
     """
-    audio_data = text_to_audio(text, pitch, speed, mouth, throat, singmode, phonetic)
+    audio_data = text_to_audio(text, pitch, speed, mouth, throat, singmode, phonetic, inflection)
     if audio_data is None:
         return None
 
@@ -132,7 +134,7 @@ class SAM:
     A Python port of the 1982 Software Automatic Mouth synthesizer.
     """
 
-    def __init__(self, pitch=64, speed=72, mouth=128, throat=128, singmode=False):
+    def __init__(self, pitch=64, speed=72, mouth=128, throat=128, singmode=False, inflection=50):
         """
         Initialize SAM with voice parameters.
 
@@ -142,12 +144,14 @@ class SAM:
             mouth: Mouth parameter (0-255, default 128)
             throat: Throat parameter (0-255, default 128)
             singmode: Enable sing mode (default False)
+            inflection: Inflection level 0-100 (0=monotone, 50=normal, 100=dramatic)
         """
         self.pitch = pitch
         self.speed = speed
         self.mouth = mouth
         self.throat = throat
         self.singmode = singmode
+        self.inflection = inflection
 
     @classmethod
     def with_preset(cls, preset_name):
@@ -212,7 +216,8 @@ class SAM:
             mouth=self.mouth,
             throat=self.throat,
             singmode=self.singmode,
-            phonetic=True
+            phonetic=True,
+            inflection=self.inflection
         )
 
     def speak(self, text, phonetic=False):
@@ -233,7 +238,8 @@ class SAM:
             mouth=self.mouth,
             throat=self.throat,
             singmode=self.singmode,
-            phonetic=phonetic
+            phonetic=phonetic,
+            inflection=self.inflection
         )
 
     def wav(self, text, phonetic=False):
@@ -254,7 +260,8 @@ class SAM:
             mouth=self.mouth,
             throat=self.throat,
             singmode=self.singmode,
-            phonetic=phonetic
+            phonetic=phonetic,
+            inflection=self.inflection
         )
 
     def save_wav(self, text, filename, phonetic=False):
