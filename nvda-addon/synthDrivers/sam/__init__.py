@@ -19,9 +19,9 @@ from .sam import SAM, VOICE_PRESETS, text_to_phonemes
 
 
 def split_for_streaming(text):
-    """Split text into words and punctuation for streaming synthesis."""
-    # Same pattern as reciter.py: words and non-words
-    tokens = re.findall(r"[A-Za-z']+|[^A-Za-z']+", text)
+    """Split text into words, numbers, and punctuation for streaming synthesis."""
+    # Split into words (with apostrophes), numbers, and everything else
+    tokens = re.findall(r"[A-Za-z']+|[0-9]+|[^A-Za-z0-9']+", text)
     return [t for t in tokens if t.strip()]
 
 
@@ -47,6 +47,9 @@ class SynthDriver(SynthDriver):
         SynthDriver.RateSetting(),
         SynthDriver.PitchSetting(),
         SynthDriver.VolumeSetting(),
+        SynthDriver.NumericSetting("mouth", "Mouth", minStep=1),
+        SynthDriver.NumericSetting("throat", "Throat", minStep=1),
+        SynthDriver.BooleanSetting("singmode", "Sing mode"),
     )
 
     supportedCommands = {
@@ -72,6 +75,9 @@ class SynthDriver(SynthDriver):
         self._rate = 50  # 0-100 scale
         self._pitch = 50  # 0-100 scale
         self._volume = 100  # 0-100 scale
+        self._mouth = 50  # 0-100 scale, maps to 0-255
+        self._throat = 50  # 0-100 scale, maps to 0-255
+        self._singmode = False
         self._speaking = False
         self._cancel_flag = threading.Event()
         self._speech_thread = None
@@ -113,9 +119,16 @@ class SynthDriver(SynthDriver):
         pitch = int(20 + (120 - 20) * self._pitch / 100)
         self._sam.pitch = max(0, min(255, pitch))
 
-        # Mouth and throat from preset
-        self._sam.mouth = preset['mouth']
-        self._sam.throat = preset['throat']
+        # Mouth: 0-100 maps to 0-255
+        mouth = int(self._mouth * 255 / 100)
+        self._sam.mouth = max(0, min(255, mouth))
+
+        # Throat: 0-100 maps to 0-255
+        throat = int(self._throat * 255 / 100)
+        self._sam.throat = max(0, min(255, throat))
+
+        # Singmode
+        self._sam.singmode = self._singmode
 
     def _getAvailableVoices(self):
         """Return available voices."""
@@ -152,6 +165,27 @@ class SynthDriver(SynthDriver):
 
     def _set_volume(self, value):
         self._volume = max(0, min(100, value))
+
+    def _get_mouth(self):
+        return self._mouth
+
+    def _set_mouth(self, value):
+        self._mouth = max(0, min(100, value))
+        self._update_sam_params()
+
+    def _get_throat(self):
+        return self._throat
+
+    def _set_throat(self, value):
+        self._throat = max(0, min(100, value))
+        self._update_sam_params()
+
+    def _get_singmode(self):
+        return self._singmode
+
+    def _set_singmode(self, value):
+        self._singmode = value
+        self._update_sam_params()
 
     def speak(self, speechSequence):
         """
@@ -256,8 +290,8 @@ class SynthDriver(SynthDriver):
                     time.sleep(PUNCTUATION_PAUSES[stripped])
                     continue
 
-                # Skip non-word, non-pause tokens (other punctuation like quotes, dashes)
-                if not re.match(r"[A-Za-z']", token):
+                # Skip non-word, non-number tokens (other punctuation like quotes, dashes)
+                if not re.match(r"[A-Za-z0-9']", token):
                     continue
 
                 # Generate raw PCM audio for this word (8-bit unsigned, 22050 Hz mono)
