@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Reference addons (not our code)
+bestspeech_*.nvda-addon
+reference-addon.nvda-addon
+
+# Test outputs
+test_output.wav
+
+# Build output (regenerated from source)
+sam.nvda-addon
