@@ -19,6 +19,7 @@ sam_datas = [
     (os.path.join(sam_path, 'reciter_tables.py'), '.'),
     (os.path.join(sam_path, 'renderer_tables.py'), '.'),
     (os.path.join(sam_path, 'cmudict.py'), '.'),
+    (os.path.join(sam_path, 'cmudict.txt'), '.'),
 ]
 
 a = Analysis(
