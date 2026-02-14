@@ -1,3 +1,24 @@
 /node_modules/
 /gh-pages
 /*.tgz
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Build artifacts
+build/sam_gui/
+dist/SAM.exe
+*.nvda-addon
+
+# Archives
+*.zip
+
+# Test outputs
+*.wav
+
+# IDE/Tools
+.claude/
+.vscode/
+.idea/
