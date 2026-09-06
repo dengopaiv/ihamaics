@@ -1,6 +1,31 @@
 # Porting the SAM engine to C
 
-Preparation notes for replacing the Python renderer with a native one.
+**Status: done.** The native renderer is byte-identical to the Python one
+and 28.8x faster than the original baseline. renderer.py delegates to it
+when the DLL loads and falls back to Python otherwise.
+
+| | sentence render | real-time factor | worst-case latency |
+|---|---|---|---|
+| Python, original | 496.3 ms | 0.060 | 227 ms |
+| Python, optimised | 269.1 ms | 0.0326 | 95 ms |
+| **C via ctypes** | **17.2 ms** | **0.0021** | **4.2 ms** |
+
+Worst case is "incomprehensibility" at the slowest rate. The C timings
+include ctypes overhead, because that is what the driver pays.
+
+Verification, all byte-for-byte:
+
+- 16 golden vectors, native and Python paths, and against each other
+- 485 randomised phoneme sequences through ctypes
+- 3000 randomised cases through sam_prepare_frames, all 8 rows
+- all 65536 (mouth, throat) combinations through sam_set_mouth_throat
+- all 2392 table values, compiled and dumped from C
+- the packaged addon, loading its own bundled DLL
+- the packaged addon with the DLLs deleted, falling back to Python
+
+The rest of this document is the plan the work followed, kept because the
+measurements explain the design.
+
 All timings below were measured on this repository, not estimated.
 
 ## The finding that shapes everything
