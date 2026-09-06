@@ -2,29 +2,18 @@
 # Provides the classic 1982 SAM voice for NVDA
 
 import threading
-import wave
-import io
-import os
-import tempfile
-import re
 import time
 
 from synthDriverHandler import SynthDriver as BaseSynthDriver, VoiceInfo, synthIndexReached, synthDoneSpeaking
-from speech.commands import IndexCommand, CharacterModeCommand, LangChangeCommand, BreakCommand, PitchCommand, RateCommand, VolumeCommand
+from speech.commands import IndexCommand, CharacterModeCommand, BreakCommand, PitchCommand, RateCommand, VolumeCommand
 from autoSettingsUtils.driverSetting import BooleanDriverSetting, NumericDriverSetting
 import nvwave
 import config
 from logHandler import log
 
-from .sam import SAM, VOICE_PRESETS, text_to_phonemes
+from .sam import SAM, VOICE_PRESETS
 from .reciter import expand_numbers
-
-
-def split_sentences(text):
-    """Split text at sentence boundaries for streaming synthesis."""
-    # Split on .!? followed by space or end, keeping punctuation with sentence
-    sentences = re.split(r'(?<=[.!?])\s+', text)
-    return [s for s in sentences if s.strip()]
+from . import cmudict
 
 
 class SynthDriver(BaseSynthDriver):
@@ -62,6 +51,13 @@ class SynthDriver(BaseSynthDriver):
 
     def __init__(self):
         super().__init__()
+
+        # Parsing the 126k-word pronunciation dictionary takes ~150ms and is
+        # otherwise paid lazily on the first word spoken, which is the most
+        # conspicuous moment possible. Start it now, in parallel with the
+        # player setup below.
+        cmudict.preload_async()
+
         self._sam = SAM()
         self._voice = "sam"
         self._rate = 50  # 0-100 scale
@@ -74,7 +70,6 @@ class SynthDriver(BaseSynthDriver):
         self._speaking = False
         self._cancel_flag = threading.Event()
         self._speech_thread = None
-        self._index_callback = None
 
         # Create audio player with NVDA's configured output device
         try:
@@ -103,10 +98,10 @@ class SynthDriver(BaseSynthDriver):
         # Get base preset values
         preset = VOICE_PRESETS.get(self._voice, VOICE_PRESETS['sam'])
 
-        # Apply rate (speed): 0-100 maps to roughly 40-150
+        # Apply rate (speed): 0-100 maps to roughly 15-150
         # Lower value = faster speech
-        speed = int(40 + (150 - 40) * (100 - self._rate) / 100)
-        self._sam.speed = max(20, min(255, speed))
+        speed = int(15 + (150 - 15) * (100 - self._rate) / 100)
+        self._sam.speed = max(10, min(255, speed))
 
         # Apply pitch: 0-100 maps to roughly 20-120
         # Invert so higher slider = higher pitch (SAM uses lower value = higher pitch)
@@ -249,7 +244,6 @@ class SynthDriver(BaseSynthDriver):
                         self._speak_text(''.join(text_buffer))
                         text_buffer = []
                     # Brief pause (SAM doesn't have native pause support)
-                    import time
                     time.sleep(item.time / 1000.0 if item.time else 0.1)
 
                 elif isinstance(item, PitchCommand):
@@ -261,7 +255,7 @@ class SynthDriver(BaseSynthDriver):
                     # Temporarily adjust rate
                     if item.offset:
                         speed = self._sam.speed - item.offset  # Inverted: higher rate = lower speed value
-                        self._sam.speed = max(20, min(255, speed))
+                        self._sam.speed = max(10, min(255, speed))
 
                 elif isinstance(item, VolumeCommand):
                     # Adjust volume
@@ -364,7 +358,12 @@ class SynthDriver(BaseSynthDriver):
         if self._player:
             self._player.stop()
         if self._speech_thread and self._speech_thread.is_alive():
-            self._speech_thread.join(timeout=0.5)
+            # Best effort: the thread re-checks _cancel_flag between words, so
+            # it exits within one word's synthesis. Measured worst case after
+            # the renderer optimisation is ~95ms ("incomprehensibility" at the
+            # slowest rate), so 0.5s only ever added dead time on the NVDA
+            # main thread. See docs/c-engine-port.md.
+            self._speech_thread.join(timeout=0.2)
 
     def pause(self, switch):
         """

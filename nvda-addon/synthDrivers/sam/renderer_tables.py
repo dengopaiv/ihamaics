@@ -298,9 +298,16 @@ PHONEME_PERIOD = 1
 PHONEME_QUESTION = 2
 
 
+# sinus() is a pure function of one byte, and process_frames called it
+# roughly half a million times per sentence. Precompute all 256 values.
+SINUS_TABLE = tuple(
+    int(math.sin(2 * math.pi * (x / 256)) * 127) for x in range(256)
+)
+
+
 def sinus(x):
     """Calculate sine wave value."""
-    return int(math.sin(2 * math.pi * (x / 256)) * 127)
+    return SINUS_TABLE[x & 0xFF]
 
 
 def get_frequency(phoneme):

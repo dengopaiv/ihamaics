@@ -2,6 +2,7 @@
 # Provides better pronunciation for 134k+ English words
 
 import os
+import threading
 
 # ARPABET to SAM phoneme mapping
 # CMU uses ARPABET, SAM uses a similar but slightly different format
@@ -61,6 +62,7 @@ CMU_TO_SAM_STRESS = {
 
 # Global dictionary storage
 _cmudict = None
+_load_lock = threading.Lock()
 
 
 def _get_dict_path():
@@ -69,45 +71,68 @@ def _get_dict_path():
 
 
 def load_cmudict():
-    """Load CMU dictionary from file."""
+    """Load CMU dictionary from file.
+
+    Parsing 126k entries takes around 150ms, so the driver kicks this off
+    on a background thread at startup. The table is therefore built into a
+    local and only published once it is complete: publishing the empty dict
+    first would let a concurrent lookup see a half-filled table and return
+    a wrong pronunciation.
+    """
     global _cmudict
-    if _cmudict is not None:
+    loaded = _cmudict
+    if loaded is not None:
+        return loaded
+
+    with _load_lock:
+        # Another thread may have finished while we waited for the lock.
+        if _cmudict is not None:
+            return _cmudict
+
+        table = {}
+        dict_path = _get_dict_path()
+
+        if os.path.exists(dict_path):
+            try:
+                with open(dict_path, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith(';;;'):
+                            continue
+
+                        # Format: WORD  P1 P2 P3
+                        # or WORD(2)  P1 P2 P3 for alternate pronunciations
+                        parts = line.split()
+                        if len(parts) < 2:
+                            continue
+
+                        word = parts[0].upper()
+                        # Remove alternate pronunciation markers like (2), (3)
+                        if '(' in word:
+                            word = word.split('(')[0]
+
+                        # Only store first pronunciation for each word
+                        if word not in table:
+                            table[word] = parts[1:]
+
+            except Exception:
+                pass
+
+        # Publish only once fully built.
+        _cmudict = table
         return _cmudict
 
-    _cmudict = {}
-    dict_path = _get_dict_path()
 
-    if not os.path.exists(dict_path):
-        return _cmudict
+def preload_async():
+    """Start loading the dictionary in the background.
 
-    try:
-        with open(dict_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith(';;;'):
-                    continue
-
-                # Format: WORD  P1 P2 P3
-                # or WORD(2)  P1 P2 P3 for alternate pronunciations
-                parts = line.split()
-                if len(parts) < 2:
-                    continue
-
-                word = parts[0].upper()
-                # Remove alternate pronunciation markers like (2), (3)
-                if '(' in word:
-                    word = word.split('(')[0]
-
-                phonemes = parts[1:]
-
-                # Only store first pronunciation for each word
-                if word not in _cmudict:
-                    _cmudict[word] = phonemes
-
-    except Exception:
-        pass
-
-    return _cmudict
+    Returns the thread so callers can join it if they need to. Safe to call
+    more than once; load_cmudict() is idempotent and locked.
+    """
+    thread = threading.Thread(target=load_cmudict, name='cmudict-preload')
+    thread.daemon = True
+    thread.start()
+    return thread
 
 
 def arpabet_to_sam(phonemes):
@@ -165,14 +190,3 @@ def lookup(word):
         return arpabet_to_sam(phonemes)
 
     return None
-
-
-def is_loaded():
-    """Check if dictionary is loaded."""
-    return _cmudict is not None and len(_cmudict) > 0
-
-
-def get_word_count():
-    """Get number of words in dictionary."""
-    cmudict = load_cmudict()
-    return len(cmudict)

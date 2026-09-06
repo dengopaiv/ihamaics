@@ -60,7 +60,7 @@ class SAMFrame(wx.Frame):
 
         # Speed (0-255, default 72)
         speed_label = wx.StaticText(panel, label="Speed:")
-        self.speed_ctrl = wx.SpinCtrl(panel, value=str(self.defaults['speed']), min=0, max=255)
+        self.speed_ctrl = wx.SpinCtrl(panel, value=str(self.defaults['speed']), min=1, max=255)
         self.speed_ctrl.SetName("Speed")
         param_sizer.Add(speed_label, flag=wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_RIGHT)
         param_sizer.Add(self.speed_ctrl, flag=wx.EXPAND)

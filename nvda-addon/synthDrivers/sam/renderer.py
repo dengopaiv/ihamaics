@@ -1,20 +1,18 @@
 # SAM Synthesizer Renderer - Audio Synthesis
 # Ported from renderer/*.es6
 
-import math
-
 # Support both package imports (for NVDA) and direct imports (for testing)
 try:
     from .renderer_tables import (
         FREQUENCY_DATA, AMPLITUDE_DATA, SAMPLED_CONSONANT_FLAGS,
         STRESS_PITCH_TABLE, BLEND_RANK, OUT_BLEND_LENGTH, IN_BLEND_LENGTH,
-        SAMPLED_CONSONANT_VALUES0, SAMPLE_TABLE, AMPLITUDE_RESCALE, sinus
+        SAMPLED_CONSONANT_VALUES0, SAMPLE_TABLE, AMPLITUDE_RESCALE, SINUS_TABLE
     )
 except ImportError:
     from renderer_tables import (
         FREQUENCY_DATA, AMPLITUDE_DATA, SAMPLED_CONSONANT_FLAGS,
         STRESS_PITCH_TABLE, BLEND_RANK, OUT_BLEND_LENGTH, IN_BLEND_LENGTH,
-        SAMPLED_CONSONANT_VALUES0, SAMPLE_TABLE, AMPLITUDE_RESCALE, sinus
+        SAMPLED_CONSONANT_VALUES0, SAMPLE_TABLE, AMPLITUDE_RESCALE, SINUS_TABLE
     )
 
 # Constants
@@ -431,15 +429,26 @@ def process_frames(output, frame_count, speed, frequency, pitches, amplitude, sa
     glottal_pulse = pitches[0]
     mem38 = int(glottal_pulse * 0.75)
 
+    # Bind the hot lookups to locals: this loop runs per sample, and the
+    # attribute/len lookups were a measurable share of total synthesis time.
+    sinus_table = SINUS_TABLE
+    write_array = output.write_array
+    n_flags = len(sampled_consonant_flag)
+    n_pitches = len(pitches)
+    amp0_arr, amp1_arr, amp2_arr = amplitude[0], amplitude[1], amplitude[2]
+    frq0_arr, frq1_arr, frq2_arr = frequency[0], frequency[1], frequency[2]
+    n_amp0, n_amp1, n_amp2 = len(amp0_arr), len(amp1_arr), len(amp2_arr)
+    n_frq0, n_frq1, n_frq2 = len(frq0_arr), len(frq1_arr), len(frq2_arr)
+
     while frame_count > 0:
-        if pos >= len(sampled_consonant_flag):
+        if pos >= n_flags:
             break
 
         flags = sampled_consonant_flag[pos]
 
         # Unvoiced sampled phoneme?
         if (flags & 248) != 0:
-            pitch_val = pitches[pos & 0xFF] if (pos & 0xFF) < len(pitches) else 0
+            pitch_val = pitches[pos & 0xFF] if (pos & 0xFF) < n_pitches else 0
             last_sample_offset = render_sample(output, last_sample_offset, flags, pitch_val)
             pos += 2
             frame_count -= 2
@@ -451,33 +460,37 @@ def process_frames(output, frame_count, speed, frequency, pitches, amplitude, sa
             p2 = phase2 * 256
             p3 = phase3 * 256
 
-            for k in range(5):
-                sp1 = sinus((p1 >> 8) & 0xFF)
-                sp2 = sinus((p2 >> 8) & 0xFF)
+            # pos is fixed for all five iterations, so the amplitude and
+            # frequency lookups (and the phase deltas derived from them)
+            # are loop invariant. Hoisted, not recomputed five times.
+            amp0 = amp0_arr[pos] & 0x0F if pos < n_amp0 else 0
+            amp1 = amp1_arr[pos] & 0x0F if pos < n_amp1 else 0
+            amp2 = amp2_arr[pos] & 0x0F if pos < n_amp2 else 0
+
+            freq0 = frq0_arr[pos] if pos < n_frq0 else 0
+            freq1 = frq1_arr[pos] if pos < n_frq1 else 0
+            freq2 = frq2_arr[pos] if pos < n_frq2 else 0
+
+            d1 = int(freq0 * 256 / 4)
+            d2 = int(freq1 * 256 / 4)
+            d3 = int(freq2 * 256 / 4)
+
+            for _ in range(5):
+                sp1 = sinus_table[(p1 >> 8) & 0xFF]
+                sp2 = sinus_table[(p2 >> 8) & 0xFF]
                 rp3 = -0x70 if ((p3 >> 8) & 0xFF) < 129 else 0x70
 
-                amp0 = amplitude[0][pos] & 0x0F if pos < len(amplitude[0]) else 0
-                amp1 = amplitude[1][pos] & 0x0F if pos < len(amplitude[1]) else 0
-                amp2 = amplitude[2][pos] & 0x0F if pos < len(amplitude[2]) else 0
-
-                sin1 = sp1 * amp0
-                sin2 = sp2 * amp1
-                rect = rp3 * amp2
-
-                mux = sin1 + sin2 + rect
-                mux = mux / 32
+                # Kept as float division plus int(): int() truncates toward
+                # zero where // would floor, which differs for negative mux.
+                mux = (sp1 * amp0 + sp2 * amp1 + rp3 * amp2) / 32
                 mux = int(mux) + 128  # Go from signed to unsigned
-                ary.append(max(0, min(255, mux)))
+                ary.append(0 if mux < 0 else (255 if mux > 255 else mux))
 
-                freq0 = frequency[0][pos] if pos < len(frequency[0]) else 0
-                freq1 = frequency[1][pos] if pos < len(frequency[1]) else 0
-                freq2 = frequency[2][pos] if pos < len(frequency[2]) else 0
+                p1 += d1
+                p2 += d2
+                p3 += d3
 
-                p1 += int(freq0 * 256 / 4)
-                p2 += int(freq1 * 256 / 4)
-                p3 += int(freq2 * 256 / 4)
-
-            output.write_array(0, ary)
+            write_array(0, ary)
 
             speedcounter -= 1
             if speedcounter == 0:
@@ -493,20 +506,20 @@ def process_frames(output, frame_count, speed, frequency, pitches, amplitude, sa
                 mem38 -= 1
                 if mem38 != 0 or flags == 0:
                     # Update phase of formants
-                    freq0 = frequency[0][pos] if pos < len(frequency[0]) else 0
-                    freq1 = frequency[1][pos] if pos < len(frequency[1]) else 0
-                    freq2 = frequency[2][pos] if pos < len(frequency[2]) else 0
+                    freq0 = frq0_arr[pos] if pos < n_frq0 else 0
+                    freq1 = frq1_arr[pos] if pos < n_frq1 else 0
+                    freq2 = frq2_arr[pos] if pos < n_frq2 else 0
                     phase1 = phase1 + freq0
                     phase2 = phase2 + freq1
                     phase3 = phase3 + freq2
                     continue
 
                 # Voiced sampled phonemes
-                pitch_val = pitches[pos & 0xFF] if (pos & 0xFF) < len(pitches) else 0
+                pitch_val = pitches[pos & 0xFF] if (pos & 0xFF) < n_pitches else 0
                 last_sample_offset = render_sample(output, last_sample_offset, flags, pitch_val)
 
             # Reset at glottal pulse boundary
-            if pos < len(pitches):
+            if pos < n_pitches:
                 glottal_pulse = pitches[pos]
             else:
                 glottal_pulse = 0
@@ -536,7 +549,9 @@ def render(phonemes, pitch=64, mouth=128, throat=128, speed=72, singmode=False, 
     pitch = pitch & 0xFF
     mouth = mouth & 0xFF
     throat = throat & 0xFF
-    speed = (speed or 72) & 0xFF
+    if speed is None:
+        speed = 72
+    speed = speed & 0xFF
 
     # Prepare frames
     t, frequency, pitches, amplitude, sampled_consonant_flag = prepare_frames(
