@@ -59,15 +59,21 @@ def run_dumper():
             f.write('@echo off\n')
             f.write(f'call "{vcvars}" x64 >nul 2>nul\n')
             f.write(f'cd /d "{tmp}"\n')
-            f.write(f'cl /nologo /W4 /WX /I "{SRC}" '
+            log = os.path.join(tmp, 'build.log')
+            inc = os.path.join(ROOT, 'native', 'include')
+            f.write(f'cl /nologo /W4 /WX /I "{SRC}" /I "{inc}" '
                     f'"{os.path.join(TOOLS, "dump_frames.c")}" '
                     f'"{os.path.join(SRC, "sam_frames.c")}" '
-                    f'"{os.path.join(SRC, "sam_tables.c")}" /Fe:"{exe}" >nul || exit /b 1\n')
+                    f'"{os.path.join(SRC, "sam_tables.c")}" '
+                    f'/Fe:"{exe}" > "{log}" 2>&1 || exit /b 1\n')
             f.write(f'"{exe}"\n')
         r = subprocess.run(['cmd', '/c', bat], capture_output=True, text=True)
         if r.returncode != 0:
-            print('build or run failed:')
-            print(r.stdout or r.stderr)
+            log = os.path.join(tmp, 'build.log')
+            print(f'build or run failed (exit {r.returncode}):')
+            if os.path.exists(log):
+                print(open(log, encoding='utf-8', errors='replace').read())
+            print(r.stdout[-1000:] or r.stderr[-1000:])
             return None
         return r.stdout
     finally:

@@ -65,8 +65,10 @@ typedef struct {
  * Otherwise writes at most out_capacity bytes and returns how many it
  * wrote, or a negative SAM_E_* code.
  *
- * Pure function of its inputs: no globals, no allocation, no I/O. Safe to
- * call concurrently from several threads.
+ * Deterministic in its inputs and free of globals and I/O, so it is safe
+ * to call concurrently from several threads. It does allocate internally:
+ * the per-frame working set is proportional to the total phoneme length
+ * and is freed before returning.
  */
 SAM_API int sam_render(const sam_phoneme_t *phonemes,
                        int                  count,
