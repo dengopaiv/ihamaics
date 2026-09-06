@@ -95,6 +95,15 @@ with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as zf:
     zf.writestr('NOTICE.md', notice_bytes)
     print(f'Added: NOTICE.md')
 
+    # And the licence statement, so someone who unpacks the addon can see
+    # the position without going to the repository.
+    licence_path = os.path.join(os.path.dirname(addon_dir), 'LICENSE')
+    licence_bytes = open(licence_path, 'rb').read()
+    total_original += len(licence_bytes)
+    total_cleaned += len(licence_bytes)
+    zf.writestr('LICENSE', licence_bytes)
+    print(f'Added: LICENSE')
+
     # Add synthDrivers directory
     synth_dir = os.path.join(addon_dir, 'synthDrivers', 'sam')
     for dirpath, dirnames, filenames in os.walk(synth_dir):

@@ -145,9 +145,9 @@ its maintainers hold copyright in SAM or purport to license it.
 Use it at your own risk.
 
 The bundled CMU Pronouncing Dictionary is separately licensed by
-Carnegie Mellon University under BSD-2-Clause terms. Full
-attributions for every bundled component are in
-[NOTICE.md](NOTICE.md).
+Carnegie Mellon University under BSD-2-Clause terms. The full
+position is in [LICENSE](LICENSE), and per-component attributions
+are in [NOTICE.md](NOTICE.md).
 
 ## Contact
 

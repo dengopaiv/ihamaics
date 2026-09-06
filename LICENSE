@@ -1,0 +1,92 @@
+IHAMAICS - licence status
+=========================
+
+Short version: this repository cannot be placed under a single open
+source licence, because most of what is in it derives from software
+that nobody involved in this project owns. Nothing here grants you
+rights over the original SAM. Use it at your own risk.
+
+Per-component attribution, including the full text of the licences
+that do apply, is in NOTICE.md.
+
+This file is a statement of the project's position, written by its
+maintainers. It is not legal advice.
+
+
+1. The SAM engine, and everything derived from it
+-------------------------------------------------
+
+SAM (Software Automatic Mouth) was published in 1982 by Don't Ask
+Software, written by Mark Barton. Copyright in it is held by
+SoftVoice, Inc. (www.text2speech.com).
+
+Attempts to contact the company have failed and its website was last
+updated in 2009, so the status of the original software is best
+described as abandonware:
+
+    http://en.wikipedia.org/wiki/Abandonware
+
+The engine in this repository is a reverse-engineered reimplementation
+of that software. That covers:
+
+  - the JavaScript port in src/, test/ and dist/
+  - the Python port in nvda-addon/synthDrivers/sam/
+  - the C renderer in native/
+  - the reference audio in native/tests/golden/
+
+Neither this project nor its maintainers hold copyright in SAM, and
+neither purports to license it to anyone. No open source licence can
+honestly be granted over this code while that remains the case, and
+this file does not attempt to grant one.
+
+
+2. The CMU Pronouncing Dictionary
+----------------------------------
+
+nvda-addon/synthDrivers/sam/cmudict.txt is redistributed from
+cmusphinx/cmudict under a BSD-2-Clause licence held by Carnegie
+Mellon University. That licence requires the copyright notice to be
+retained in redistributions, and deems the dictionary file itself to
+be source code, so the notice is kept verbatim in the file's own ;;;
+header and travels with it into the built add-on.
+
+The full text is in NOTICE.md.
+
+
+3. Prior work this builds on
+-----------------------------
+
+The JavaScript port is by Christian Schiffler (discordier/sam), based
+on the C adaptation by Stefan Macke (s-macke/SAM), with refactorings
+by Vidar Hokstad and 8BitPimp. The Python and C engines here were
+ported from that JavaScript. The constraint in section 1 applies to
+all of it.
+
+
+4. Original work in this repository
+------------------------------------
+
+Some material here is not a derivative of SAM: the NVDA driver
+integration, the packaging and validation scripts, the build and
+differential-testing tooling under native/tools/, and the
+documentation.
+
+To the extent that this material can be separated from the engine, the
+maintainers place no additional restrictions on its use beyond those
+already imposed by sections 1 to 3. This is a waiver of the
+maintainers' own claims. It is not, and cannot be, permission to use
+SAM itself.
+
+
+5. What this means in practice
+-------------------------------
+
+  - You may read, build, modify and run this code.
+  - You may not rely on this project for permission to redistribute
+    SAM commercially, or for any assurance about SoftVoice's rights.
+  - If you redistribute the add-on, keep NOTICE.md and the cmudict
+    header intact; CMU's licence requires it.
+  - If SoftVoice, Inc. or a successor in interest objects to this
+    project, please open an issue and the maintainers will act on it.
+
+    https://github.com/dengopaiv/ihamaics/issues
