@@ -1,0 +1,82 @@
+[
+  {
+    "name": "hello_default",
+    "samples": 9789,
+    "ms": 443.9
+  },
+  {
+    "name": "a_fast",
+    "samples": 194,
+    "ms": 8.8
+  },
+  {
+    "name": "a_slow",
+    "samples": 4957,
+    "ms": 224.8
+  },
+  {
+    "name": "elf_preset",
+    "samples": 12818,
+    "ms": 581.3
+  },
+  {
+    "name": "et_preset",
+    "samples": 16810,
+    "ms": 762.4
+  },
+  {
+    "name": "old_lady_preset",
+    "samples": 14244,
+    "ms": 646.0
+  },
+  {
+    "name": "pitch_floor",
+    "samples": 11246,
+    "ms": 510.0
+  },
+  {
+    "name": "pitch_ceiling",
+    "samples": 6523,
+    "ms": 295.8
+  },
+  {
+    "name": "mouth_throat_zero",
+    "samples": 6016,
+    "ms": 272.8
+  },
+  {
+    "name": "mouth_throat_max",
+    "samples": 5979,
+    "ms": 271.2
+  },
+  {
+    "name": "singmode",
+    "samples": 10730,
+    "ms": 486.6
+  },
+  {
+    "name": "monotone",
+    "samples": 8777,
+    "ms": 398.0
+  },
+  {
+    "name": "dramatic",
+    "samples": 7231,
+    "ms": 327.9
+  },
+  {
+    "name": "question",
+    "samples": 13763,
+    "ms": 624.2
+  },
+  {
+    "name": "long_word",
+    "samples": 34972,
+    "ms": 1586.0
+  },
+  {
+    "name": "sentence",
+    "samples": 31239,
+    "ms": 1416.7
+  }
+]

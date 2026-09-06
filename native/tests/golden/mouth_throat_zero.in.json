@@ -1,0 +1,30 @@
+{
+  "text": "edge",
+  "phonemes": "EH4J",
+  "phoneme_list": [
+    [
+      7,
+      14,
+      4
+    ],
+    [
+      44,
+      8,
+      0
+    ],
+    [
+      45,
+      3,
+      0
+    ]
+  ],
+  "params": {
+    "pitch": 64,
+    "speed": 72,
+    "mouth": 0,
+    "throat": 0,
+    "singmode": false,
+    "inflection": 50
+  },
+  "expected_samples": 6016
+}

@@ -1,0 +1,9 @@
+# Golden reference audio. These must round-trip byte for byte: git's
+# binary autodetection only scans for NUL in the first 8000 bytes, and
+# 0x0D/0x0A are perfectly ordinary PCM sample values, so do not leave
+# it to chance.
+*.pcm binary
+
+# The pronunciation dictionary is data, not source; keep it LF so the
+# checkout matches what gets packaged.
+nvda-addon/synthDrivers/sam/cmudict.txt text eol=lf

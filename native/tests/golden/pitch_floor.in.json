@@ -1,0 +1,40 @@
+{
+  "text": "zero",
+  "phonemes": "ZIH4ROW",
+  "phoneme_list": [
+    [
+      38,
+      6,
+      5
+    ],
+    [
+      6,
+      9,
+      4
+    ],
+    [
+      18,
+      10,
+      0
+    ],
+    [
+      52,
+      14,
+      0
+    ],
+    [
+      20,
+      8,
+      0
+    ]
+  ],
+  "params": {
+    "pitch": 0,
+    "speed": 72,
+    "mouth": 128,
+    "throat": 128,
+    "singmode": false,
+    "inflection": 50
+  },
+  "expected_samples": 11246
+}

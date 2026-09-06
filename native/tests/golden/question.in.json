@@ -1,0 +1,40 @@
+{
+  "text": "really?",
+  "phonemes": "RIH4LIY ?",
+  "phoneme_list": [
+    [
+      23,
+      10,
+      5
+    ],
+    [
+      6,
+      9,
+      4
+    ],
+    [
+      19,
+      9,
+      0
+    ],
+    [
+      5,
+      13,
+      0
+    ],
+    [
+      2,
+      18,
+      0
+    ]
+  ],
+  "params": {
+    "pitch": 64,
+    "speed": 72,
+    "mouth": 128,
+    "throat": 128,
+    "singmode": false,
+    "inflection": 50
+  },
+  "expected_samples": 13763
+}

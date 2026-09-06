@@ -1,0 +1,45 @@
+{
+  "text": "flat",
+  "phonemes": "FLAE4T",
+  "phoneme_list": [
+    [
+      34,
+      2,
+      0
+    ],
+    [
+      24,
+      9,
+      5
+    ],
+    [
+      8,
+      13,
+      4
+    ],
+    [
+      69,
+      4,
+      0
+    ],
+    [
+      70,
+      2,
+      0
+    ],
+    [
+      71,
+      2,
+      0
+    ]
+  ],
+  "params": {
+    "pitch": 64,
+    "speed": 72,
+    "mouth": 128,
+    "throat": 128,
+    "singmode": false,
+    "inflection": 0
+  },
+  "expected_samples": 8777
+}

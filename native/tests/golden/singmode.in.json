@@ -1,0 +1,45 @@
+{
+  "text": "lalala",
+  "phonemes": "LAELAELAH",
+  "phoneme_list": [
+    [
+      24,
+      6,
+      0
+    ],
+    [
+      8,
+      8,
+      0
+    ],
+    [
+      19,
+      9,
+      0
+    ],
+    [
+      8,
+      8,
+      0
+    ],
+    [
+      19,
+      9,
+      0
+    ],
+    [
+      10,
+      6,
+      0
+    ]
+  ],
+  "params": {
+    "pitch": 64,
+    "speed": 72,
+    "mouth": 128,
+    "throat": 128,
+    "singmode": true,
+    "inflection": 50
+  },
+  "expected_samples": 10730
+}
