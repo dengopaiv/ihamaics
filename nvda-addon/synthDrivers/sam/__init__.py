@@ -14,6 +14,7 @@ from logHandler import log
 from .sam import SAM, VOICE_PRESETS
 from .reciter import expand_numbers
 from . import cmudict
+from . import native
 
 
 class SynthDriver(BaseSynthDriver):
@@ -57,6 +58,14 @@ class SynthDriver(BaseSynthDriver):
         # conspicuous moment possible. Start it now, in parallel with the
         # player setup below.
         cmudict.preload_async()
+
+        # Say which renderer is in use. The native one is roughly 16x
+        # faster, and a fallback to Python is inaudible, so it would
+        # otherwise be invisible until someone profiled it.
+        if native.available():
+            log.info("SAM: native renderer active (%s)" % native.library_path())
+        else:
+            log.info("SAM: native renderer unavailable, using the Python renderer")
 
         self._sam = SAM()
         self._voice = "sam"
