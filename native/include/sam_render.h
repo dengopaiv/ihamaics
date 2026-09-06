@@ -56,14 +56,19 @@ typedef struct {
 #define SAM_E_BADARG      (-1)   /* NULL phonemes, count <= 0, NULL voice */
 #define SAM_E_BADSPEED    (-2)   /* voice->speed == 0 (would divide by zero) */
 #define SAM_E_SHORTBUF    (-3)   /* out_capacity smaller than needed */
+#define SAM_E_NOMEM       (-4)   /* internal working set could not be allocated */
 
 /*
  * Render phonemes to 8-bit unsigned PCM.
  *
- * Pass out == NULL to query the required capacity without rendering;
- * the return value is then the sample count that a real call would write.
- * Otherwise writes at most out_capacity bytes and returns how many it
- * wrote, or a negative SAM_E_* code.
+ * Pass out == NULL to query a capacity to allocate. That value is an
+ * upper bound (176.4 * total_length * speed), not the exact length: how
+ * many samples the timetable actually advances is only known once the
+ * frames have been rendered. A real call returns the exact count.
+ *
+ * Otherwise writes the rendered samples and returns how many it wrote,
+ * or a negative SAM_E_* code. SAM_E_SHORTBUF means out_capacity was
+ * smaller than the rendered length and nothing was written.
  *
  * Deterministic in its inputs and free of globals and I/O, so it is safe
  * to call concurrently from several threads. It does allocate internally:
