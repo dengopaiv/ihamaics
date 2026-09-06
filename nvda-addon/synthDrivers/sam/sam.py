@@ -18,11 +18,11 @@ except ImportError:
 # Voice presets (pitch, speed, mouth, throat)
 VOICE_PRESETS = {
     'sam': {'pitch': 64, 'speed': 72, 'mouth': 128, 'throat': 128},
-    'elf': {'pitch': 64, 'speed': 72, 'mouth': 110, 'throat': 160},
+    'elf': {'pitch': 64, 'speed': 72, 'mouth': 160, 'throat': 110},
     'little_robot': {'pitch': 60, 'speed': 92, 'mouth': 190, 'throat': 190},
-    'stuffy_guy': {'pitch': 72, 'speed': 82, 'mouth': 110, 'throat': 105},
-    'little_old_lady': {'pitch': 32, 'speed': 72, 'mouth': 145, 'throat': 145},
-    'extra_terrestrial': {'pitch': 64, 'speed': 100, 'mouth': 150, 'throat': 200},
+    'stuffy_guy': {'pitch': 72, 'speed': 82, 'mouth': 105, 'throat': 110},
+    'little_old_lady': {'pitch': 32, 'speed': 82, 'mouth': 145, 'throat': 145},
+    'extra_terrestrial': {'pitch': 64, 'speed': 100, 'mouth': 200, 'throat': 150},
 }
 
 
