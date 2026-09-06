@@ -29,6 +29,7 @@ exit /b 0
 echo === building %1 ===
 setlocal
 call "%VSPATH%\VC\Auxiliary\Build\vcvarsall.bat" %1 >nul || exit /b 1
-cl /nologo /LD /O2 /W4 /WX /DSAM_BUILD_DLL /I "%HERE%include" "%HERE%src\sam_render.c" /Fe:"%HERE%build\sam_render-%1.dll" /Fo:"%HERE%build\sam_render-%1.obj" /link /INCREMENTAL:NO || exit /b 1
+cd /d "%HERE%build"
+cl /nologo /LD /O2 /W4 /WX /DSAM_BUILD_DLL /I "%HERE%include" /I "%HERE%src" "%HERE%src\sam_render.c" "%HERE%src\sam_frames.c" "%HERE%src\sam_tables.c" /Fe:"%HERE%build\sam_render-%1.dll" /link /INCREMENTAL:NO || exit /b 1
 endlocal
 exit /b 0
