@@ -4,6 +4,7 @@
 
 # Python
 __pycache__/
+.pytest_cache/
 *.pyc
 *.pyo
 
@@ -11,6 +12,15 @@ __pycache__/
 build/sam_gui/
 dist/SAM.exe
 *.nvda-addon
+
+# Native engine build outputs (golden vectors ARE tracked)
+native/build/
+*.dll
+*.obj
+*.o
+*.lib
+*.exp
+*.pdb
 
 # Archives
 *.zip

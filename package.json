@@ -59,7 +59,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/discordier/sam.git"
+    "url": "git+https://github.com/dengopaiv/ihamaics.git"
   },
   "keywords": [
     "speech",
@@ -69,7 +69,7 @@
   ],
   "license": "SEE LICENSE IN README.md",
   "bugs": {
-    "url": "https://github.com/discordier/sam/issues"
+    "url": "https://github.com/dengopaiv/ihamaics/issues"
   },
-  "homepage": "https://github.com/discordier/sam#readme"
+  "homepage": "https://github.com/dengopaiv/ihamaics#readme"
 }

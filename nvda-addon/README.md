@@ -48,7 +48,11 @@ This project stands on the shoulders of giants:
 
 ## License
 
-This project follows the licensing of the original SAM implementation and the JavaScript port.
+SAM is reverse-engineered software whose copyright is held by SoftVoice, Inc.;
+it cannot be placed under an open source licence, and neither can this port.
+The bundled CMU Pronouncing Dictionary is licensed separately by Carnegie
+Mellon University. See [NOTICE.md](../NOTICE.md) for the full attributions,
+which also ship inside the built addon.
 
 ## Technical Details
 

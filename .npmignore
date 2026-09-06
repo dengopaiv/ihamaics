@@ -1,9 +1,14 @@
-/.gitmodules
 /.idea
 /.github
-/c-src
 /docs
 /gh-pages
 /karma.conf.js
 /test
 /*.tgz
+
+# Python NVDA addon / GUI - not part of the npm package
+/nvda-addon
+/sam_gui.py
+/sam_gui.spec
+/build/sam_gui
+/dist/SAM.exe

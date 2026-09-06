@@ -9,13 +9,19 @@ SKIP_DIRS = {'__pycache__'}
 
 
 def clean_cmudict(content):
-    """Strip alternate pronunciations, inline comments, and blank lines from cmudict."""
+    """Strip alternate pronunciations, inline comments and blank lines from cmudict.
+
+    The ;;; licence header is preserved verbatim.
+    """
     lines = content.splitlines()
     cleaned = []
     for line in lines:
         if not line.strip():
             continue
         if line.startswith(';;;'):
+            # Keep CMU's copyright notice: their licence requires that
+            # redistributions retain it, and deems this file source code.
+            cleaned.append(line)
             continue
         word_field = line.split()[0] if line.split() else ''
         if '(' in word_field:
@@ -55,6 +61,14 @@ with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as zf:
     total_cleaned += len(manifest_bytes)
     zf.writestr('manifest.ini', manifest_bytes)
     print(f'Added: manifest.ini')
+
+    # Ship the third-party notices with the addon (CMU's licence requires it)
+    notice_path = os.path.join(os.path.dirname(addon_dir), 'NOTICE.md')
+    notice_bytes = open(notice_path, 'rb').read()
+    total_original += len(notice_bytes)
+    total_cleaned += len(notice_bytes)
+    zf.writestr('NOTICE.md', notice_bytes)
+    print(f'Added: NOTICE.md')
 
     # Add synthDrivers directory
     synth_dir = os.path.join(addon_dir, 'synthDrivers', 'sam')
