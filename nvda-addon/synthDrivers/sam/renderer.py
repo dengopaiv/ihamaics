@@ -15,6 +15,16 @@ except ImportError:
         SAMPLED_CONSONANT_VALUES0, SAMPLE_TABLE, AMPLITUDE_RESCALE, SINUS_TABLE
     )
 
+# Optional native renderer. Absent or unloadable is fine: render() falls
+# back to the Python path below, which stays the reference implementation.
+try:
+    from . import native
+except ImportError:
+    try:
+        import native
+    except ImportError:
+        native = None
+
 # Constants
 PHONEME_PERIOD = 1
 PHONEME_QUESTION = 2
@@ -552,6 +562,15 @@ def render(phonemes, pitch=64, mouth=128, throat=128, speed=72, singmode=False, 
     if speed is None:
         speed = 72
     speed = speed & 0xFF
+
+    # Hand off to the native renderer when it loaded. It is verified
+    # byte-identical to the code below; None means it is unavailable or
+    # refused the input, never that the result was silence.
+    if native is not None:
+        audio = native.render(phonemes, pitch, mouth, throat, speed,
+                              singmode, inflection)
+        if audio is not None:
+            return audio
 
     # Prepare frames
     t, frequency, pitches, amplitude, sampled_consonant_flag = prepare_frames(

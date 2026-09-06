@@ -103,6 +103,23 @@ with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as zf:
             else:
                 print(f'Added: {relpath} ({original_size/1024:.1f} KB)')
 
+    # Native renderer, if built. Both architectures ship: NVDA is x64 now
+    # but 32-bit builds still exist, and native.py picks at load time.
+    # Absent is not an error - renderer.py falls back to the Python path.
+    build_dir = os.path.join(os.path.dirname(addon_dir), 'native', 'build')
+    for arch in ('x64', 'x86'):
+        dll_path = os.path.join(build_dir, f'sam_render-{arch}.dll')
+        if not os.path.exists(dll_path):
+            print(f'Skipped: sam_render-{arch}.dll (not built)')
+            continue
+        with open(dll_path, 'rb') as f:
+            dll_bytes = f.read()
+        zf.writestr(f'synthDrivers/sam/sam_render-{arch}.dll', dll_bytes)
+        total_original += len(dll_bytes)
+        total_cleaned += len(dll_bytes)
+        print(f'Added: synthDrivers/sam/sam_render-{arch}.dll '
+              f'({len(dll_bytes)/1024:.1f} KB)')
+
 print(f'\nTotal content: {total_original/1024:.1f} KB -> {total_cleaned/1024:.1f} KB (saved {(total_original-total_cleaned)/1024:.1f} KB)')
 print(f'Created: {output_file}')
 print(f'Archive size: {os.path.getsize(output_file) / 1024 / 1024:.2f} MB')

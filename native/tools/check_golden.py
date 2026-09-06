@@ -17,6 +17,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, 'nvda-addon', 'synthDrivers', 'sam'))
 
+import renderer  # noqa: E402
 from renderer import render  # noqa: E402
 
 GOLDEN = os.path.join(ROOT, 'native', 'tests', 'golden')
@@ -27,6 +28,14 @@ def main():
     if not specs:
         print('no golden vectors found; run gen_golden.py first')
         return 1
+
+    # renderer.render() delegates to the native library when it loaded, so
+    # checking it once would leave the Python path untested. Force the
+    # fallback here: the Python renderer is the reference implementation
+    # and has to stay correct on its own. verify_render.py covers native.
+    if renderer.native is not None:
+        print('  (native library loaded; forcing the Python path)')
+        renderer.native = None
 
     failures = 0
     for spec_path in specs:
