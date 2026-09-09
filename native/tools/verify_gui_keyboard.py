@@ -69,6 +69,7 @@ NAMES = {
     1012: 'throat label', 1013: 'throat', 1014: 'throat spin',
     1015: 'inflection label', 1016: 'inflection', 1017: 'inflection spin',
     1018: 'Preview', 1019: 'Convert', 1020: 'Render',
+    1021: 'sing mode', 1022: 'preset label', 1023: 'voice preset',
 }
 
 u32 = ctypes.WinDLL('user32', use_last_error=True)
@@ -169,15 +170,37 @@ def settle(hwnd, thread_id, timeout=10.0):
     return None
 
 
-def press_tab(hwnd, shift=False):
-    """Post a real Tab keypress to the focused control."""
+def press_tab(hwnd, thread_id, shift=False, timeout=2.0):
+    """Post a real Tab keypress and wait for the focus to actually move.
+
+    Returns where the focus ended up, which is the same window it started
+    on if nothing moved - that is the keyboard-trap case, and it costs the
+    full timeout to establish.
+
+    A fixed pause here instead of a wait made the walk flaky. The keypress
+    is posted to another process, and when the machine is busy - straight
+    after a rebuild, say - that process can take longer to handle it than
+    the pause allowed. The focus then reads back unchanged, the walk gives
+    up early, and controls that are perfectly reachable get reported as
+    unreachable. Waiting for the change is what makes a pass mean the tab
+    order is right, rather than that the machine happened to be idle.
+    """
+    before = focus_of(thread_id)
+
     if shift:
         u32.PostMessageW(hwnd, WM_KEYDOWN, VK_SHIFT, 1)
     u32.PostMessageW(hwnd, WM_KEYDOWN, VK_TAB, 1)
     u32.PostMessageW(hwnd, WM_KEYUP, VK_TAB, 0xC0000001)
     if shift:
         u32.PostMessageW(hwnd, WM_KEYUP, VK_SHIFT, 0xC0000001)
-    time.sleep(0.06)
+
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        now = focus_of(thread_id)
+        if now and now != before:
+            return now
+        time.sleep(0.02)
+    return focus_of(thread_id)
 
 
 def walk(thread_id, start, steps, shift=False):
@@ -185,13 +208,51 @@ def walk(thread_id, start, steps, shift=False):
     seen = []
     cur = start
     for _ in range(steps):
-        press_tab(cur, shift)
-        nxt = focus_of(thread_id)
+        nxt = press_tab(cur, thread_id, shift)
         seen.append(nxt)
         if not nxt or nxt == cur:
             break
         cur = nxt
     return seen
+
+
+def check_accelerators(hwnd, arch):
+    """No two controls may claim the same Alt key.
+
+    Windows does not complain about a duplicate: Alt+V simply cycles
+    between the controls that want it instead of activating either, so a
+    clash is invisible until someone navigating by keyboard cannot reach
+    a button. This started as an eyeball check and immediately found one -
+    "&Voice preset" against "Pre&view" - which is why it is a test.
+    """
+    seen = {}
+    clashes = []
+
+    for h in children(hwnd):
+        buf = ctypes.create_unicode_buffer(256)
+        u32.GetWindowTextW(h, buf, 256)
+        text = buf.value
+        i = text.find('&')
+        # "&&" is a literal ampersand, not an accelerator.
+        while i >= 0 and i + 1 < len(text) and text[i + 1] == '&':
+            i = text.find('&', i + 2)
+        if i < 0 or i + 1 >= len(text):
+            continue
+        key = text[i + 1].upper()
+        if key in seen:
+            clashes.append((key, seen[key], describe(h)))
+        else:
+            seen[key] = describe(h)
+
+    if clashes:
+        for key, first, second in clashes:
+            print('  FAIL  %s: Alt+%s is claimed by both the %s and the %s'
+                  % (arch, key, first, second))
+        return len(clashes)
+
+    print('  ok    %s: %d accelerators, all distinct (%s)'
+          % (arch, len(seen), ' '.join(sorted(seen))))
+    return 0
 
 
 def check(arch):
@@ -223,8 +284,7 @@ def check(arch):
               % (arch, hex(code), ' | '.join(names)))
 
         # The trap: does Tab get out of the box it starts in?
-        press_tab(start)
-        after = focus_of(tid)
+        after = press_tab(start, tid)
         if after == start:
             print('  FAIL  %s: Tab does not leave the %s - it is a '
                   'keyboard trap' % (arch, describe(start)))
@@ -257,14 +317,15 @@ def check(arch):
             failures += 1
 
         cur = focus_of(tid)
-        press_tab(cur, shift=True)
-        back = focus_of(tid)
+        back = press_tab(cur, tid, shift=True)
         if back and back != cur:
             print('  ok    %s: Shift+Tab goes back to the %s'
                   % (arch, describe(back)))
         else:
             print('  FAIL  %s: Shift+Tab does not move focus' % arch)
             failures += 1
+
+        failures += check_accelerators(hwnd, arch)
 
     finally:
         if hwnd:

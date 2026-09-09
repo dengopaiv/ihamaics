@@ -76,6 +76,35 @@ static const ParamSpec PARAMS[] = {
 
 enum { P_SPEED = 0, P_PITCH, P_MOUTH, P_THROAT, P_INFLECTION };
 
+/*
+ * The voice presets, straight from VOICE_PRESETS in sam.py, which are in
+ * turn the table printed in the 1982 manual.
+ *
+ * They set four of the five parameters; inflection is not part of a
+ * preset because sam.py's presets do not carry one, so choosing a voice
+ * leaves whatever inflection the user has dialled in.
+ *
+ * Custom is last and is what the combo shows when the four spin values
+ * match no preset. Selecting it deliberately does nothing - there is no
+ * "custom" set of numbers to apply.
+ */
+struct PresetSpec {
+    const wchar_t *name;
+    int speed, pitch, mouth, throat;
+};
+
+static const PresetSpec PRESETS[] = {
+    { L"SAM",                72, 64, 128, 128 },
+    { L"Elf",                72, 64, 160, 110 },
+    { L"Little Robot",       92, 60, 190, 190 },
+    { L"Stuffy Guy",         82, 72, 105, 110 },
+    { L"Little Old Lady",    82, 32, 145, 145 },
+    { L"Extra-Terrestrial", 100, 64, 200, 150 },
+};
+
+#define PRESET_COUNT ((int)(sizeof(PRESETS) / sizeof(PRESETS[0])))
+#define PRESET_CUSTOM PRESET_COUNT      /* the index of the "Custom" item */
+
 static const wchar_t *DEFAULT_TEXT = L"Hello, my name is Sam.";
 static const wchar_t *WINDOW_TITLE = L"SAM Text-to-Speech";
 
@@ -84,10 +113,18 @@ static const wchar_t *WINDOW_TITLE = L"SAM Text-to-Speech";
 /* --------------------------------------------------------------------- */
 
 static HINSTANCE g_inst;
-static HWND g_main, g_textLabel, g_text, g_phonemeMode;
+static HWND g_main, g_textLabel, g_text, g_phonemeMode, g_singMode, g_preset;
 static HWND g_edit[PARAM_COUNT], g_spin[PARAM_COUNT];
 static HWND g_preview, g_convert, g_render;
 static HFONT g_font;
+
+/*
+ * Set once every control exists. The spin controls fire EN_CHANGE on
+ * their buddy edits as they are created, and the handler for that reads
+ * every other spin; without this it would run against handles that are
+ * still NULL.
+ */
+static int g_ready;
 
 static const void *g_dict;      /* into the resource; process-lifetime */
 static int g_dictLen;
@@ -182,6 +219,15 @@ static void TrimInPlace(wchar_t *s)
     }
 }
 
+/*
+ * The value a parameter box currently holds.
+ *
+ * The up-down is the authority, not the edit beside it: with
+ * UDS_SETBUDDYINT the control parses its buddy's text and clamps it to
+ * the range, so UDM_GETPOS32 follows typing and the arrow keys alike and
+ * can never return something out of range. Reading the edit text instead
+ * would mean re-implementing that parse and that clamp.
+ */
 static int GetSpin(int which)
 {
     return (int)SendMessageW(g_spin[which], UDM_GETPOS32, 0, 0);
@@ -197,12 +243,12 @@ static int IsChecked(HWND cb)
 /* --------------------------------------------------------------------- */
 
 /*
- * Voice settings exactly as sam_gui.py builds them: the five spin values,
- * and sing mode off because that GUI has no control for it and
- * text_to_wav defaults singmode to False.
+ * Voice settings as sam_gui.py builds them, plus sing mode, which the
+ * renderer has always supported and which text_to_wav takes as an
+ * argument; the Python GUI simply never exposed a control for it.
  */
 static sam_voice_t VoiceFrom(int speed, int pitch, int mouth, int throat,
-                             int inflection)
+                             int inflection, int singmode)
 {
     sam_voice_t v;
 
@@ -210,7 +256,7 @@ static sam_voice_t VoiceFrom(int speed, int pitch, int mouth, int throat,
     v.mouth = (unsigned char)mouth;
     v.throat = (unsigned char)throat;
     v.speed = (unsigned char)speed;
-    v.singmode = 0;
+    v.singmode = singmode ? 1 : 0;
     v.inflection = inflection;
     return v;
 }
@@ -218,7 +264,82 @@ static sam_voice_t VoiceFrom(int speed, int pitch, int mouth, int throat,
 static sam_voice_t VoiceFromUI(void)
 {
     return VoiceFrom(GetSpin(P_SPEED), GetSpin(P_PITCH), GetSpin(P_MOUTH),
-                     GetSpin(P_THROAT), GetSpin(P_INFLECTION));
+                     GetSpin(P_THROAT), GetSpin(P_INFLECTION),
+                     IsChecked(g_singMode));
+}
+
+/* --------------------------------------------------------------------- */
+/* Presets                                                               */
+/* --------------------------------------------------------------------- */
+
+static void SyncPresetCombo(void);
+
+/*
+ * Put a value into one parameter box.
+ *
+ * Setting the up-down's position is enough: UDS_SETBUDDYINT makes it
+ * write the number into its buddy edit, so the box the user reads and
+ * the value GetSpin() reports move together and cannot disagree.
+ */
+static void SetParam(int which, int value)
+{
+    SendMessageW(g_spin[which], UDM_SETPOS32, 0, value);
+}
+
+/* Push a preset's four values into the parameter boxes. */
+static void ApplyPreset(int index)
+{
+    const PresetSpec *p;
+
+    if (index < 0 || index >= PRESET_COUNT) {
+        return;   /* Custom: there is nothing to apply */
+    }
+    p = &PRESETS[index];
+
+    SetParam(P_SPEED, p->speed);
+    SetParam(P_PITCH, p->pitch);
+    SetParam(P_MOUTH, p->mouth);
+    SetParam(P_THROAT, p->throat);
+
+    /* Each SetParam above rewrites a buddy edit, which raises EN_CHANGE
+     * and re-runs SyncPresetCombo. Those intermediate runs see a half
+     * applied voice and land on Custom, so the combo is put right once
+     * here, after all four values are in. It settles on the preset just
+     * applied, which makes this a fixed point rather than a loop -
+     * CB_SETCURSEL sends no notification back. */
+    SyncPresetCombo();
+}
+
+/*
+ * Point the combo at whichever preset the spin values currently describe,
+ * or at Custom when they describe none.
+ *
+ * Deriving the selection from the values, rather than remembering what
+ * was last chosen, is what keeps the combo honest when someone edits a
+ * number by hand - and it means ApplyPreset needs no guard flag, because
+ * CB_SETCURSEL does not send CBN_SELCHANGE back.
+ */
+static void SyncPresetCombo(void)
+{
+    int speed, pitch, mouth, throat, i;
+
+    if (!g_ready) {
+        return;
+    }
+    speed = GetSpin(P_SPEED);
+    pitch = GetSpin(P_PITCH);
+    mouth = GetSpin(P_MOUTH);
+    throat = GetSpin(P_THROAT);
+
+    for (i = 0; i < PRESET_COUNT; i++) {
+        const PresetSpec *p = &PRESETS[i];
+        if (p->speed == speed && p->pitch == pitch
+            && p->mouth == mouth && p->throat == throat) {
+            SendMessageW(g_preset, CB_SETCURSEL, (WPARAM)i, 0);
+            return;
+        }
+    }
+    SendMessageW(g_preset, CB_SETCURSEL, (WPARAM)PRESET_CUSTOM, 0);
 }
 
 /* Render to 8-bit unsigned PCM. Returns a malloc'd buffer and its length. */
@@ -624,7 +745,31 @@ static void CreateControls(void)
     g_phonemeMode = Make(L"BUTTON", L"Phoneme &mode (input is raw phonemes)",
                          BS_AUTOCHECKBOX | WS_TABSTOP,
                          M, y, W - 2 * M, LBL, IDC_PHONEMEMODE);
+    y += LBL + 4;
+
+    g_singMode = Make(L"BUTTON", L"Sin&g mode",
+                      BS_AUTOCHECKBOX | WS_TABSTOP,
+                      M, y, W - 2 * M, LBL, IDC_SINGMODE);
     y += LBL + GAP;
+
+    /* The label goes in first so it precedes the combo in z-order, which
+     * is both the tab order and the order a screen reader reads. */
+    /* "V&oice", not "&Voice": Preview already owns Alt+V, and two
+     * controls sharing an accelerator makes it cycle between them
+     * instead of activating either. verify_gui_keyboard.py checks. */
+    Make(L"STATIC", L"V&oice preset:", SS_RIGHT, M, y + 4, labW, LBL,
+         IDC_PRESETLABEL);
+    /* The height given to a combo is the dropped-down height; the closed
+     * control sizes itself to the font. */
+    g_preset = Make(L"COMBOBOX", NULL,
+                    WS_TABSTOP | WS_VSCROLL | CBS_DROPDOWNLIST,
+                    M + labW + GAP, y, 180, 200, IDC_PRESET);
+    for (i = 0; i < PRESET_COUNT; i++) {
+        SendMessageW(g_preset, CB_ADDSTRING, 0, (LPARAM)PRESETS[i].name);
+    }
+    SendMessageW(g_preset, CB_ADDSTRING, 0, (LPARAM)L"Custom");
+    SendMessageW(g_preset, CB_SETCURSEL, 0, 0);
+    y += ROW + 4;
 
     for (i = 0; i < PARAM_COUNT; i++) {
         const ParamSpec *p = &PARAMS[i];
@@ -664,6 +809,10 @@ static void CreateControls(void)
                         BS_PUSHBUTTON | WS_TABSTOP, bx, y, 120, bh,
                         IDC_RENDER);
     }
+
+    /* Everything exists now, so the EN_CHANGE handler may safely read it. */
+    g_ready = 1;
+    SyncPresetCombo();
 }
 
 /* --------------------------------------------------------------------- */
@@ -696,6 +845,23 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                                IsChecked(g_phonemeMode)
                                ? L"&Phonemes to speak:"
                                : L"&Text to speak:");
+            }
+            return 0;
+        case IDC_PRESET:
+            if (HIWORD(wp) == CBN_SELCHANGE) {
+                ApplyPreset((int)SendMessageW(g_preset, CB_GETCURSEL, 0, 0));
+            }
+            return 0;
+
+        /* Typing in any of the four preset-controlled boxes, or nudging
+         * its spin, can take the voice off a named preset or land it
+         * exactly on one. Either way the combo follows the numbers. */
+        case IDC_SPEED:
+        case IDC_PITCH:
+        case IDC_MOUTH:
+        case IDC_THROAT:
+            if (HIWORD(wp) == EN_CHANGE) {
+                SyncPresetCombo();
             }
             return 0;
         case IDCANCEL:
@@ -768,14 +934,18 @@ static void MakeFont(void)
  * Headless self-test, so the shipped binary can be checked rather than a
  * separate harness that merely shares its sources.
  *
- *   sam_gui.exe --selftest SPEED PITCH MOUTH THROAT INFLECTION
+ *   sam_gui.exe --selftest SPEED PITCH MOUTH THROAT INFLECTION SINGMODE
  *               PHONEMEMODE OUT.WAV TEXT
  *
- * PHONEMEMODE is 0 or 1 and means exactly what the checkbox means.
- * Everything downstream is the same code the buttons run, VoiceFrom()
- * included, so a match against the Python GUI is a statement about this
- * executable and not about a copy of it. Returns 0 on success.
- * See native/tools/verify_gui.py.
+ * SINGMODE and PHONEMEMODE are 0 or 1 and mean exactly what the
+ * checkboxes mean. Everything downstream is the same code the buttons
+ * run, VoiceFrom() included, so a match against the Python GUI is a
+ * statement about this executable and not about a copy of it. Returns 0
+ * on success. See native/tools/verify_gui.py.
+ *
+ * The preset combo needs no argument of its own: choosing a preset only
+ * writes the four spin values, so passing those values is passing the
+ * preset. verify_gui.py covers each one that way.
  */
 static int RunSelfTest(int argc, wchar_t **argv)
 {
@@ -785,14 +955,14 @@ static int RunSelfTest(int argc, wchar_t **argv)
     char *input;
     int phonemeMode, samples = 0;
 
-    if (argc < 10) {
+    if (argc < 11) {
         return 2;
     }
     v = VoiceFrom(_wtoi(argv[2]), _wtoi(argv[3]), _wtoi(argv[4]),
-                  _wtoi(argv[5]), _wtoi(argv[6]));
-    phonemeMode = _wtoi(argv[7]);
+                  _wtoi(argv[5]), _wtoi(argv[6]), _wtoi(argv[7]));
+    phonemeMode = _wtoi(argv[8]);
 
-    input = WideToBytes(argv[9]);
+    input = WideToBytes(argv[10]);
     if (input == NULL) {
         return 3;
     }
@@ -808,7 +978,7 @@ static int RunSelfTest(int argc, wchar_t **argv)
     if (wav == NULL) {
         return 5;
     }
-    if (!WriteWholeFile(argv[8], wav, wavLen)) {
+    if (!WriteWholeFile(argv[9], wav, wavLen)) {
         free(wav);
         return 6;
     }
@@ -873,10 +1043,12 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, LPWSTR, int show)
         return 1;
     }
 
+    /* Tall enough for the sing-mode checkbox and the preset row that the
+     * Python GUI does not have: the buttons end at 416. */
     r.left = 0;
     r.top = 0;
     r.right = 430;
-    r.bottom = 400;
+    r.bottom = 430;
     AdjustWindowRect(&r, WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME, FALSE);
 
     hwnd = CreateWindowExW(0, wc.lpszClassName, WINDOW_TITLE,

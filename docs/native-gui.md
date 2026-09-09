@@ -75,16 +75,39 @@ Feature for feature, `sam_gui.py`:
   button disabled until playback finishes
 - **Render to WAV** — standard save dialog, 8-bit unsigned 22050 Hz mono
 
-Plus two controls the engine has always supported and no GUI exposed:
+Plus four controls the engine has always supported and no GUI exposed:
 
 - **Phoneme mode** — the input is raw phonemes, `text_to_audio(phonetic=True)`
 - **Convert to Phonemes** — replaces the text with its phoneme string and
   switches to phoneme mode
+- **Sing mode** — the renderer's `singmode`, a `text_to_wav` argument that
+  `sam_gui.py` never wired to anything
+- **Voice preset** — the six voices from `VOICE_PRESETS` in `sam.py`,
+  which are the table printed in the 1982 manual
 
-Sing mode and the six voice presets in `sam.py` are still not exposed,
-because `sam_gui.py` does not expose them either. The presets are covered
-in `verify_gui.py` as parameter combinations, so they are known to work
-if a control is ever added.
+### How the preset combo behaves
+
+Choosing a preset writes its four numbers — speed, pitch, mouth, throat —
+into the boxes. Inflection is left alone, because `sam.py`'s presets do
+not carry one.
+
+The selection is **derived from the values, not remembered**. After any
+change to those four boxes the combo is recomputed: it names whichever
+preset the numbers describe, or says Custom when they describe none.
+Selecting Custom deliberately does nothing, since there is no custom set
+of numbers to apply.
+
+That direction matters. A combo that remembered the last thing clicked
+would go on saying "Little Robot" after the speed was edited by hand,
+which is a GUI claiming one voice while speaking another. Deriving it
+also means applying a preset needs no re-entrancy guard: the sync settles
+on the preset just applied, so it is a fixed point, and `CB_SETCURSEL`
+sends no notification back.
+
+`sam.py`'s presets are duplicated in `PRESETS` in `sam_gui.cpp`, because a
+Win32 combo cannot import a Python dict. `verify_gui.py` diffs the two on
+every run — these four values have been transposed once already, in
+commit `2116629`.
 
 ## Three quirks carried over deliberately
 
@@ -166,6 +189,22 @@ asserted. The GUI reports `WM_GETDLGCODE` of `0x8d`
 (`WANTARROWS | WANTALLKEYS | HASSETSEL | WANTCHARS`) and Tab leaves it
 anyway.
 
+The same script also checks that no two controls claim the same `&`
+accelerator. Windows does not complain about a duplicate — Alt+V just
+cycles between the two claimants instead of activating either — so the
+clash is invisible until someone navigating by keyboard cannot reach a
+button. Adding the voice preset introduced exactly that: `&Voice preset`
+against `Pre&view`. It is `V&oice preset` now, and the twelve
+accelerators are checked to be distinct on every run.
+
+One note for anyone extending these scripts: **`press_tab` waits for the
+focus to move rather than sleeping a fixed interval.** The keypress is
+posted to another process, and on a busy machine that process can take
+longer to handle it than any pause you would be willing to hardcode. With
+a fixed sleep the walk gave up early and reported reachable controls as
+unreachable — a test that passes when the machine is idle and fails when
+it is not is worse than no test, because it teaches you to ignore it.
+
 The lesson is the ordering. Correct labels on controls nobody can reach
 are worth nothing, and a design argument for accessibility — however
 sound — is not evidence that the built program is accessible.
@@ -177,6 +216,7 @@ python native\tools\verify_parser.py         # parser vs Python
 python native\tools\verify_reciter.py        # rule engine vs Python
 python native\tools\verify_text.py           # front end vs Python
 python native\tools\verify_gui.py            # the exe vs the Python GUI
+python native\tools\verify_gui_presets.py    # the preset combo, in the real window
 python native\tools\verify_gui_keyboard.py   # its tab order, for real
 ```
 
@@ -191,7 +231,10 @@ it is checked against the whole domain instead:
 | `sam_text_to_phonemes`, with dictionary | 144,272 | identical |
 | `sam_text_to_phonemes`, rules only | 144,272 | identical |
 | `sam_expand_numbers` | 4,216 | identical |
-| `sam_gui.exe` vs `sam_gui.py`, x64 and x86 | 27 each | byte-identical |
+| `sam_gui.exe` vs `sam_gui.py`, x64 and x86 | 39 each | byte-identical |
+
+The 39 include sing mode on and off, every preset spoken and sung, and
+the preset table diffed against `sam.py` before any of them run.
 
 Every one of the 126,052 dictionary words appears in the parser, reciter
 and front-end corpora. The rest is coined words that force the rule
@@ -222,6 +265,16 @@ of characters whose Unicode uppercase is ASCII and longer than one
 character — `ß` uppercases to `SS` in Python and stays one byte here.
 Nothing the reciter can pronounce is in that set, and the GUI narrows to
 `CP_ACP` bytes before calling in.
+
+**Reading another process's controls needs `WM_GETTEXT`, not
+`GetWindowText`.** `GetWindowText` will not fetch the live text of a
+control owned by a different process; it answers from a cached caption,
+so a parameter box reads as whatever it held when it was created and
+never appears to change. `verify_gui_presets.py` used it at first and
+reported every preset as broken — the presets were fine, the test was
+lying. `WM_GETTEXT` is marshalled across the process boundary and reports
+the truth. Worth knowing before believing any future test that drives
+these windows from outside.
 
 ## Dependencies
 

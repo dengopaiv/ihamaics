@@ -61,9 +61,10 @@ no runtime to install first:
     gui-native\build.cmd x64
 
 That writes `gui-native/build/sam_gui-x64.exe` (about 4 MB, most of
-it the pronunciation dictionary). It adds a phoneme mode and a
-Convert to Phonemes button to what the Python app offers. See
-[docs/native-gui.md](docs/native-gui.md).
+it the pronunciation dictionary). Everything the Python app has,
+plus four things the engine always supported and no GUI exposed:
+phoneme mode, a Convert to Phonemes button, sing mode, and a voice
+preset dropdown. See [docs/native-gui.md](docs/native-gui.md).
 
 **Python** —
 
@@ -95,8 +96,9 @@ and the front end, and the results must be identical.
 
 ## Voice presets
 
-Both the addon and the app ship the presets from the original
-manual:
+The presets from the original manual. The native app offers them in
+a dropdown; the addon and `sam_gui.py` carry the same numbers but
+have no control for choosing one:
 
 ```
 DESCRIPTION          SPEED     PITCH     THROAT    MOUTH

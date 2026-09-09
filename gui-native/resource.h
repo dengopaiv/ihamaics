@@ -28,6 +28,9 @@
 #define IDC_PREVIEW       1018
 #define IDC_CONVERT       1019
 #define IDC_RENDER        1020
+#define IDC_SINGMODE      1021
+#define IDC_PRESETLABEL   1022
+#define IDC_PRESET        1023
 
 /* Private messages, posted from the playback thread. */
 #define WM_APP_PLAY_DONE     (WM_APP + 1)
