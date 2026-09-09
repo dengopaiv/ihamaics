@@ -14,6 +14,8 @@ brings that voice back as a working accessibility tool.
 | Path | What it is |
 |------|------------|
 | `nvda-addon/` | The NVDA synthesizer addon — the main product |
+| `native/` | The C engine: renderer, parser, reciter, dictionary |
+| `gui-native/` | `sam_gui.exe` — the desktop app with no Python behind it |
 | `sam_gui.py` | wxPython app: type text, preview, save a WAV |
 | `src/`, `test/`, `dist/` | The upstream JavaScript port, kept as reference |
 | `docs/` | The original 1982 SAM manual and scans |
@@ -49,6 +51,22 @@ More detail in [nvda-addon/README.md](nvda-addon/README.md).
 
 ## The desktop app
 
+Two builds of the same application, and they produce byte-identical
+audio for the same settings.
+
+**Native** — one self-contained executable, no Python, no wxPython,
+no runtime to install first:
+
+    python native\tools\gen_dict.py
+    gui-native\build.cmd x64
+
+That writes `gui-native/build/sam_gui-x64.exe` (about 4 MB, most of
+it the pronunciation dictionary). It adds a phoneme mode and a
+Convert to Phonemes button to what the Python app offers. See
+[docs/native-gui.md](docs/native-gui.md).
+
+**Python** —
+
     python sam_gui.py
 
 Type text, set Speed, Pitch, Mouth, Throat and Inflection, then
@@ -56,6 +74,24 @@ Preview or Render to WAV. Needs `wxPython`. To build a standalone
 executable, from the repository root:
 
     pyinstaller sam_gui.spec
+
+## The C engine
+
+`native/` holds a C port of the whole engine. The renderer came
+first, because it was 99.7% of synthesis cost and the addon loads it
+through `ctypes` for a 28.8x speedup — see
+[docs/c-engine-port.md](docs/c-engine-port.md). The reciter, parser
+and dictionary followed, because a Python-free application needs
+them — see [docs/native-gui.md](docs/native-gui.md).
+
+Both halves are verified against the Python by differential testing
+over the whole domain rather than by sampling: every one of the
+126,052 dictionary words goes through the parser, the rule engine
+and the front end, and the results must be identical.
+
+    native\build.cmd                    :: the DLLs the addon loads
+    python native\tools\verify_text.py  :: front end vs Python
+    python native\tools\verify_gui.py   :: the exe vs the Python app
 
 ## Voice presets
 

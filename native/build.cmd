@@ -1,5 +1,7 @@
 @echo off
 rem Build sam_render DLLs for both architectures NVDA ships.
+rem Carries the renderer (sam_render.h, ABI 1) and the front end
+rem (sam_text.h, ABI 1) side by side; the addon uses only the renderer.
 rem Usage:  native\build.cmd          (run from anywhere)
 setlocal enabledelayedexpansion
 set "HERE=%~dp0"
@@ -30,6 +32,6 @@ echo === building %1 ===
 setlocal
 call "%VSPATH%\VC\Auxiliary\Build\vcvarsall.bat" %1 >nul || exit /b 1
 cd /d "%HERE%build"
-cl /nologo /LD /MT /O2 /W4 /WX /DSAM_BUILD_DLL /I "%HERE%include" /I "%HERE%src" "%HERE%src\sam_render.c" "%HERE%src\sam_frames.c" "%HERE%src\sam_tables.c" /Fe:"%HERE%build\sam_render-%1.dll" /link /INCREMENTAL:NO || exit /b 1
+cl /nologo /LD /MT /O2 /W4 /WX /DSAM_BUILD_DLL /I "%HERE%include" /I "%HERE%src" "%HERE%src\sam_render.c" "%HERE%src\sam_frames.c" "%HERE%src\sam_tables.c" "%HERE%src\sam_text.c" "%HERE%src\sam_parser.c" "%HERE%src\sam_reciter.c" "%HERE%src\sam_parser_tables.c" "%HERE%src\sam_reciter_tables.c" "%HERE%src\sam_cmudict_tables.c" /Fe:"%HERE%build\sam_render-%1.dll" /link /INCREMENTAL:NO || exit /b 1
 endlocal
 exit /b 0

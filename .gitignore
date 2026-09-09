@@ -15,6 +15,11 @@ dist/SAM.exe
 
 # Native engine build outputs (golden vectors ARE tracked)
 native/build/
+gui-native/build/
+
+# The dictionary blob is generated from cmudict.txt, which is tracked.
+# Regenerate with: python native/tools/gen_dict.py
+native/data/
 *.dll
 *.obj
 *.o
