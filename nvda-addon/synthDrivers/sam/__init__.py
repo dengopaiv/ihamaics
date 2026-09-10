@@ -76,6 +76,11 @@ class SynthDriver(BaseSynthDriver):
         self._mouth = 50  # 0-100 scale, maps to 0-255
         self._throat = 50  # 0-100 scale, maps to 0-255
         self._singmode = False
+        # Volume for the utterance being spoken. Prosody commands last
+        # for one utterance, so they write here and to the engine, never
+        # to the settings behind them - _volume is what NVDA reads back
+        # and saves to its config file.
+        self._speak_volume = self._volume
         self._speaking = False
         self._cancel_flag = threading.Event()
         self._speech_thread = None
@@ -102,20 +107,31 @@ class SynthDriver(BaseSynthDriver):
             self._player = None
         self._sam = None
 
+    @staticmethod
+    def _sam_speed(rate):
+        """NVDA's 0-100 rate as SAM's speed: 0-100 maps to roughly 15-150.
+
+        Inverted, because SAM's number is a frame duration: lower is
+        faster.
+        """
+        return max(10, min(255, int(15 + (150 - 15) * (100 - rate) / 100)))
+
+    @staticmethod
+    def _sam_pitch(pitch):
+        """NVDA's 0-100 pitch as SAM's pitch: 0-100 maps to roughly 20-120.
+
+        Inverted, because SAM's number is a glottal pulse period: lower
+        is a higher voice.
+        """
+        return max(0, min(255, int(20 + (120 - 20) * (100 - pitch) / 100)))
+
     def _update_sam_params(self):
         """Update SAM parameters based on current settings."""
         # Get base preset values
         preset = VOICE_PRESETS.get(self._voice, VOICE_PRESETS['sam'])
 
-        # Apply rate (speed): 0-100 maps to roughly 15-150
-        # Lower value = faster speech
-        speed = int(15 + (150 - 15) * (100 - self._rate) / 100)
-        self._sam.speed = max(10, min(255, speed))
-
-        # Apply pitch: 0-100 maps to roughly 20-120
-        # Invert so higher slider = higher pitch (SAM uses lower value = higher pitch)
-        pitch = int(20 + (120 - 20) * (100 - self._pitch) / 100)
-        self._sam.pitch = max(0, min(255, pitch))
+        self._sam.speed = self._sam_speed(self._rate)
+        self._sam.pitch = self._sam_pitch(self._pitch)
 
         # Mouth: 0-100 maps to 0-255
         mouth = int(self._mouth * 255 / 100)
@@ -170,6 +186,7 @@ class SynthDriver(BaseSynthDriver):
 
     def _set_volume(self, value):
         self._volume = max(0, min(100, value))
+        self._speak_volume = self._volume
 
     def _get_inflection(self):
         return self._inflection
@@ -199,6 +216,34 @@ class SynthDriver(BaseSynthDriver):
         self._singmode = value
         self._update_sam_params()
 
+    @staticmethod
+    def _command_value(command, fallback):
+        """The absolute 0-100 setting a prosody command asks for.
+
+        NVDA computes newValue from the user's configured setting, so it
+        is already absolute rather than a delta on whatever the engine
+        happens to be doing now: PitchCommand(offset=30) means "the
+        configured pitch plus 30", and a bare PitchCommand() means "back
+        to the configured pitch". NVDA brackets every capital with that
+        pair when raise-pitch-for-capitals is on.
+
+        Reading .offset instead, and skipping the command when it was
+        zero, threw away the half of the pair that puts the voice back.
+
+        A command NVDA cannot price - no current synth, a config section
+        that is not there - falls back to the setting itself, because a
+        wrong pitch for one utterance beats a silent one.
+        """
+        try:
+            value = command.newValue
+        except Exception as e:
+            log.debugWarning(
+                "SAM: cannot read %s.newValue: %s" % (type(command).__name__, e))
+            value = None
+        if value is None:
+            value = fallback
+        return max(0, min(100, int(value)))
+
     def speak(self, speechSequence):
         """
         Speak a sequence of text and commands.
@@ -218,7 +263,13 @@ class SynthDriver(BaseSynthDriver):
         """Background thread for speech synthesis."""
         self._speaking = True
         text_buffer = []
-        pending_index = None
+
+        # Prosody commands are scoped to one utterance. Put the
+        # configured values back before this one starts, so a sequence
+        # that ended without its closing PitchCommand() cannot colour
+        # everything spoken afterwards.
+        self._update_sam_params()
+        self._speak_volume = self._volume
 
         try:
             for item in speechSequence:
@@ -256,20 +307,26 @@ class SynthDriver(BaseSynthDriver):
                     time.sleep(item.time / 1000.0 if item.time else 0.1)
 
                 elif isinstance(item, PitchCommand):
-                    # Temporarily adjust pitch
-                    if item.offset:
-                        self._sam.pitch = max(0, min(255, self._sam.pitch + item.offset))
+                    # Speak what is buffered first: the change applies to
+                    # what follows it, not to text already accumulated.
+                    if text_buffer:
+                        self._speak_text(''.join(text_buffer))
+                        text_buffer = []
+                    self._sam.pitch = self._sam_pitch(
+                        self._command_value(item, self._pitch))
 
                 elif isinstance(item, RateCommand):
-                    # Temporarily adjust rate
-                    if item.offset:
-                        speed = self._sam.speed - item.offset  # Inverted: higher rate = lower speed value
-                        self._sam.speed = max(10, min(255, speed))
+                    if text_buffer:
+                        self._speak_text(''.join(text_buffer))
+                        text_buffer = []
+                    self._sam.speed = self._sam_speed(
+                        self._command_value(item, self._rate))
 
                 elif isinstance(item, VolumeCommand):
-                    # Adjust volume
-                    if item.offset:
-                        self._volume = max(0, min(100, self._volume + item.offset))
+                    if text_buffer:
+                        self._speak_text(''.join(text_buffer))
+                        text_buffer = []
+                    self._speak_volume = self._command_value(item, self._volume)
 
             # Speak any remaining text
             if text_buffer and not self._cancel_flag.is_set():
@@ -307,7 +364,7 @@ class SynthDriver(BaseSynthDriver):
                     continue
 
                 # Apply volume if needed
-                if self._volume < 100:
+                if self._speak_volume < 100:
                     audio_data = self._apply_volume(audio_data)
 
                 # Apply fade in/out to avoid clicks at word boundaries
@@ -325,10 +382,10 @@ class SynthDriver(BaseSynthDriver):
 
     def _apply_volume(self, data):
         """Apply volume scaling to audio data."""
-        if self._volume >= 100:
+        if self._speak_volume >= 100:
             return data
 
-        scale = self._volume / 100.0
+        scale = self._speak_volume / 100.0
         result = bytearray(len(data))
         for i, sample in enumerate(data):
             # Convert unsigned 8-bit to signed, scale, convert back

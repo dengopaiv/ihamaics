@@ -22,6 +22,10 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
+# What NVDA would have in config for this synth. The stub prosody commands
+# resolve their offsets against these, exactly as the real ones do.
+CONFIGURED = {'pitch': 50, 'rate': 50, 'volume': 100}
+
 # Defaults to the working tree; pass a synthDrivers directory (for example
 # one extracted from a built .nvda-addon) to test what actually ships.
 SAM_PKG = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 \
@@ -82,9 +86,53 @@ def _make_stub_modules(captured):
         def __init__(self, **kw):
             self.__dict__.update(kw)
 
+    class BaseProsodyCommand:
+        """Faithful to NVDA's speech.commands.BaseProsodyCommand.
+
+        offset and multiplier are expressed against the user's configured
+        setting, not against whatever the synth is doing at the time, and
+        newValue resolves them to an absolute 0-100 value. Constructed
+        with neither, it means "go back to the configured value" - which
+        is how NVDA ends a capital letter, and what a driver that reads
+        .offset and skips zero will silently ignore.
+        """
+
+        settingName = None
+
+        def __init__(self, offset=0, multiplier=1):
+            if offset != 0 and multiplier != 1:
+                raise ValueError('offset and multiplier both specified')
+            self._offset = offset
+            self._multiplier = multiplier
+            self.isDefault = offset == 0 and multiplier == 1
+
+        @property
+        def defaultValue(self):
+            return CONFIGURED[self.settingName]
+
+        @property
+        def offset(self):
+            if self._offset != 0:
+                return self._offset
+            if self._multiplier == 1:
+                return 0
+            return int(self.defaultValue * self._multiplier - self.defaultValue)
+
+        @property
+        def newValue(self):
+            if self._offset != 0:
+                return self.defaultValue + self._offset
+            if self._multiplier != 1:
+                return int(self.defaultValue * self._multiplier)
+            return self.defaultValue
+
     for name in ('IndexCommand', 'CharacterModeCommand', 'LangChangeCommand',
-                 'BreakCommand', 'PitchCommand', 'RateCommand', 'VolumeCommand'):
+                 'BreakCommand'):
         commands.__dict__[name] = type(name, (_Cmd,), {})
+    for name, setting in (('PitchCommand', 'pitch'), ('RateCommand', 'rate'),
+                          ('VolumeCommand', 'volume')):
+        commands.__dict__[name] = type(
+            name, (BaseProsodyCommand,), {'settingName': setting})
     speech = types.ModuleType('speech')
     speech.commands = commands
 
@@ -152,6 +200,99 @@ def _make_stub_modules(captured):
     }
 
 
+def prosody_checks(synth, cmds):
+    """Prosody commands must not leak past the utterance that carries them.
+
+    NVDA brackets a capital letter with PitchCommand(offset=capPitchChange)
+    ... PitchCommand(), and expects the second to put the voice back. It
+    also expects the commands never to disturb the stored settings, which
+    NVDA reads back and writes to its config file.
+    """
+    problems = []
+
+    for name in ('pitch', 'rate', 'volume'):
+        getattr(synth, '_set_' + name)(CONFIGURED[name])
+
+    base_pitch = synth._sam.pitch
+    base_speed = synth._sam.speed
+
+    def wait():
+        deadline = time.time() + 30
+        while synth.isSpeaking and time.time() < deadline:
+            time.sleep(0.02)
+
+    # Four capitals in a row. Each pair must land on the same raised pitch
+    # and come back to the same baseline; the old driver drifted 30 further
+    # from it every time.
+    raised = set()
+    before = len(problems)
+    for letter in 'ABCD':
+        seq = [cmds.PitchCommand(offset=30), letter, cmds.PitchCommand()]
+        synth.speak(seq)
+        wait()
+        raised.add(synth._sam_pitch(seq[0].newValue))
+        if synth._sam.pitch != base_pitch:
+            problems.append(
+                'pitch did not reset after capital %r: %d, expected %d'
+                % (letter, synth._sam.pitch, base_pitch))
+    if len(problems) == before:
+        print('  ok    pitch %d -> %d while raised -> %d after, over 4 capitals'
+              % (base_pitch, sorted(raised)[0], synth._sam.pitch))
+
+    # The raise has to be audible, and upward: SAM's number is a period.
+    if sorted(raised)[0] >= base_pitch:
+        problems.append('a raised capital is not a higher voice: %d vs %d'
+                        % (sorted(raised)[0], base_pitch))
+    else:
+        print('  ok    a raised capital lowers the period, so the voice rises')
+
+    # Plain speech afterwards is unaffected.
+    synth.speak(['ordinary text'])
+    wait()
+    if synth._sam.pitch != base_pitch:
+        problems.append('pitch leaked into the next utterance: %d, expected %d'
+                        % (synth._sam.pitch, base_pitch))
+    else:
+        print('  ok    the next utterance starts from the configured pitch')
+
+    # An utterance that never sends the closing command must not colour
+    # what comes after it either.
+    synth.speak([cmds.PitchCommand(offset=-20), 'unterminated'])
+    wait()
+    synth.speak(['after'])
+    wait()
+    if synth._sam.pitch != base_pitch:
+        problems.append('an unterminated pitch change leaked: %d, expected %d'
+                        % (synth._sam.pitch, base_pitch))
+    else:
+        print('  ok    an unterminated change is dropped at the next utterance')
+
+    # Rate behaves the same way.
+    for _ in range(3):
+        synth.speak([cmds.RateCommand(offset=20), 'x', cmds.RateCommand()])
+        wait()
+    if synth._sam.speed != base_speed:
+        problems.append('rate did not reset: %d, expected %d'
+                        % (synth._sam.speed, base_speed))
+    else:
+        print('  ok    rate returns to %d' % base_speed)
+
+    # And volume must never touch the stored setting, which NVDA saves.
+    for _ in range(3):
+        synth.speak([cmds.VolumeCommand(offset=-10), 'x', cmds.VolumeCommand()])
+        wait()
+    if synth._get_volume() != CONFIGURED['volume']:
+        problems.append('volume command rewrote the saved setting: %d, expected %d'
+                        % (synth._get_volume(), CONFIGURED['volume']))
+    else:
+        print('  ok    the stored volume setting is still %d'
+              % CONFIGURED['volume'])
+
+    for msg in problems:
+        print('  FAIL  ' + msg)
+    return 1 if problems else 0
+
+
 def main():
     captured = []
     stubs = _make_stub_modules(captured)
@@ -206,6 +347,10 @@ def main():
     t0 = time.time()
     synth.cancel()
     print(f'  ok    cancel() returned in {(time.time() - t0) * 1000:.0f} ms')
+
+    print('\nprosody commands are scoped to one utterance...')
+    if prosody_checks(synth, cmds) != 0:
+        return 1
 
     print('\nsetting round-trip...')
     for attr, value in (('rate', 90), ('pitch', 20), ('volume', 50),
