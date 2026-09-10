@@ -20,9 +20,16 @@ Inputs, and what to run when one of them is missing:
     gui-native\build.cmd x86            sam_gui-x86.exe
 
 The addon is rebuilt here from source, validated, and then zipped, so
-the archive can never be staler than the tree it was cut from.
+the archive can never be staler than the tree it was cut from. The C
+is not rebuilt - that needs MSVC - so instead the binaries are checked
+against the sources they came from, and against the addon version, and
+the build stops rather than shipping a mismatch.
 """
+import argparse
+import glob
+import io
 import os
+import re
 import subprocess
 import sys
 import time
@@ -49,6 +56,29 @@ INPUTS = [
     (os.path.join(ROOT, 'gui-native', 'build', 'sam_gui-x86.exe'),
      r'gui-native\build.cmd x86'),
 ]
+
+# What each binary is compiled from. Checked by mtime before packaging:
+# this script cannot rebuild the C, so the least it can do is refuse to
+# ship a binary older than the source it claims to be.
+NATIVE_SRC = [os.path.join(ROOT, 'native', 'src'),
+              os.path.join(ROOT, 'native', 'include'),
+              os.path.join(ROOT, 'native', 'build.cmd')]
+GUI_SRC = NATIVE_SRC + [os.path.join(ROOT, 'gui-native', 'sam_gui.cpp'),
+                        os.path.join(ROOT, 'gui-native', 'sam_gui.rc'),
+                        os.path.join(ROOT, 'gui-native', 'resource.h'),
+                        os.path.join(ROOT, 'gui-native', 'sam_gui.manifest'),
+                        os.path.join(ROOT, 'gui-native', 'build.cmd'),
+                        os.path.join(ROOT, 'native', 'data', 'sam.dict')]
+
+SOURCES_OF = {
+    'sam_render-x64.dll': NATIVE_SRC,
+    'sam_render-x86.dll': NATIVE_SRC,
+    'sam_gui-x64.exe': GUI_SRC,
+    'sam_gui-x86.exe': GUI_SRC,
+}
+
+MANIFEST = os.path.join(ROOT, 'nvda-addon', 'manifest.ini')
+GUI_RC = os.path.join(ROOT, 'gui-native', 'sam_gui.rc')
 
 README = """SAM (Software Automatic Mouth) - I Have A Mouth And I Can Scream
 
@@ -95,6 +125,107 @@ https://github.com/dengopaiv/ihamaics
 """
 
 
+def newest_source(paths):
+    """The newest mtime under a set of files and directories."""
+    newest = 0.0
+    where = None
+    for path in paths:
+        if os.path.isdir(path):
+            files = [f for f in glob.glob(os.path.join(path, '**', '*'),
+                                          recursive=True)
+                     if os.path.isfile(f)]
+        elif os.path.isfile(path):
+            files = [path]
+        else:
+            continue
+        for f in files:
+            t = os.path.getmtime(f)
+            if t > newest:
+                newest, where = t, f
+    return newest, where
+
+
+def check_freshness():
+    """Refuse to package a binary older than the source it came from.
+
+    This is an mtime check, so it can cry wolf: a git checkout or a
+    branch switch restamps files it did not really change, and the
+    binaries then look stale when they are not. Rebuilding is a couple
+    of minutes and settles it. --allow-stale is for the case where you
+    have established that the mtimes are lying.
+    """
+    stale = []
+    for path, cmd in INPUTS:
+        name = os.path.basename(path)
+        newest, where = newest_source(SOURCES_OF[name])
+        if newest > os.path.getmtime(path):
+            stale.append((name, where, cmd,
+                          os.path.getmtime(path), newest))
+    if not stale:
+        print('=== binaries are newer than their sources ===\n')
+        return True
+
+    print('ERROR: these binaries are older than the source they are built '
+          'from.\n')
+    for name, where, cmd, binary_t, source_t in stale:
+        print('  %s' % name)
+        print('      built   %s' % time.strftime('%Y-%m-%d %H:%M',
+                                                 time.localtime(binary_t)))
+        print('      but     %s' % os.path.relpath(where, ROOT))
+        print('      changed %s' % time.strftime('%Y-%m-%d %H:%M',
+                                                 time.localtime(source_t)))
+        print('      rebuild with:  %s' % cmd)
+    print('\nA checkout can restamp files it did not change; if that is what '
+          'happened here,')
+    print('rebuild anyway, or pass --allow-stale once you are sure.')
+    return False
+
+
+def check_versions():
+    """The exe's version resource has to agree with the addon manifest.
+
+    Two hand-maintained copies of one number drift, and the drift is
+    invisible until someone opens the exe's properties dialog and finds
+    it claiming a version the project left behind.
+    """
+    manifest = io.open(MANIFEST, encoding='utf-8').read()
+    m = re.search(r'^version\s*=\s*([0-9]+(?:\.[0-9]+)*)\s*$',
+                  manifest, re.M)
+    if not m:
+        print('ERROR: no version in %s' % os.path.relpath(MANIFEST, ROOT))
+        return False
+    want = m.group(1)
+
+    rc = io.open(GUI_RC, encoding='utf-8').read()
+    problems = []
+    for label, pattern, expected in (
+            ('FILEVERSION', r'^\s*FILEVERSION\s+([0-9,]+)\s*$',
+             ','.join((want + '.0.0.0').split('.')[:4])),
+            ('PRODUCTVERSION', r'^\s*PRODUCTVERSION\s+([0-9,]+)\s*$',
+             ','.join((want + '.0.0.0').split('.')[:4])),
+            ('FileVersion', r'VALUE "FileVersion",\s*"([0-9.]+)"',
+             '.'.join((want + '.0.0.0').split('.')[:4])),
+            ('ProductVersion', r'VALUE "ProductVersion",\s*"([0-9.]+)"',
+             '.'.join((want + '.0.0.0').split('.')[:4]))):
+        found = re.search(pattern, rc, re.M)
+        if not found:
+            problems.append('%s not found in sam_gui.rc' % label)
+        elif found.group(1).replace(' ', '') != expected:
+            problems.append('%s is %s, manifest says %s (expected %s)'
+                            % (label, found.group(1), want, expected))
+    if problems:
+        print('ERROR: the GUI version resource disagrees with the addon '
+              'manifest.\n')
+        for problem in problems:
+            print('  %s' % problem)
+        print('\nUpdate gui-native/sam_gui.rc, then rebuild both '
+              'executables.')
+        return False
+
+    print('=== addon and executables both say version %s ===\n' % want)
+    return True
+
+
 def run(argv, what):
     print(f'=== {what} ===')
     r = subprocess.run([sys.executable] + argv, cwd=ROOT)
@@ -104,12 +235,23 @@ def run(argv, what):
 
 
 def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--allow-stale', action='store_true',
+                    help='package binaries even if they look older than '
+                         'their sources')
+    args = ap.parse_args()
+
     missing = [(p, cmd) for p, cmd in INPUTS if not os.path.exists(p)]
     if missing:
         print('ERROR: the release needs binaries that are not built yet.\n')
         for path, cmd in missing:
             print(f'  {os.path.relpath(path, ROOT)}')
             print(f'      build it with:  {cmd}')
+        return 1
+
+    if not check_versions():
+        return 1
+    if not check_freshness() and not args.allow_stale:
         return 1
 
     run([os.path.join('nvda-addon', 'package_addon.py')], 'building the addon')
