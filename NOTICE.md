@@ -26,7 +26,7 @@ Use it at your own risk.
 
 ## The JavaScript port — Christian Schiffler and others
 
-`src/`, `test/` and `dist/` are the vanilla JavaScript port from
+The engine here descends from the vanilla JavaScript port at
 [discordier/sam](https://github.com/discordier/sam) by Christian
 Schiffler, itself based on the C adaptation by
 [Stefan Macke](https://github.com/s-macke/SAM), with refactorings
@@ -35,7 +35,10 @@ by [Vidar Hokstad](https://github.com/vidarh/SAM) and
 
 The Python engine in `nvda-addon/synthDrivers/sam/` is a direct
 port of that JavaScript; each module names the `.es6` file it came
-from. The same abandonware constraint above applies to it.
+from, and the C engine in `native/` was ported from the Python.
+That JavaScript is no longer copied into this repository — it is
+upstream, at the link above — but the attribution stands: the code
+here is derived from it. The same abandonware constraint applies.
 
 ## CMU Pronouncing Dictionary — Carnegie Mellon University
 

@@ -20,7 +20,6 @@ brings that voice back as a working accessibility tool.
 | `gui-native/` | `sam_gui.exe` — the desktop app with no Python behind it |
 | `tools/make_release.py` | Builds `sam-native.zip` |
 | `sam_gui.py` | wxPython app: type text, preview, save a WAV |
-| `src/`, `test/`, `dist/` | The upstream JavaScript port, kept as reference |
 | `docs/` | The original 1982 SAM manual and scans |
 
 `sam-native.zip` is the only archive in the repository and the only
@@ -33,10 +32,10 @@ released as binaries. They stay here as source — they are the
 reference the C engine is checked against, word for word, and they
 still run from a checkout.
 
-The engine in `nvda-addon/synthDrivers/sam/` is a direct port of the
-JavaScript in `src/` — every module names the `.es6` file it came
-from — so the JavaScript tree stays here as the reference
-implementation and test corpus.
+The engine in `nvda-addon/synthDrivers/sam/` is a direct port of
+Christian Schiffler's JavaScript, and every module still names the
+`.es6` file it came from. That JavaScript is not vendored here; it
+lives upstream at [discordier/sam](https://github.com/discordier/sam).
 
 ## The NVDA addon
 
@@ -133,37 +132,6 @@ Extra-Terrestrial    100        64        150       200
 SAM                   72        64        128       128
 ```
 
-## The JavaScript library
-
-`src/` holds the vanilla JavaScript port this project was ported
-from. It still builds and tests on its own:
-
-    yarn install
-    yarn test
-    yarn build
-
-```javascript
-import SamJs from 'sam-js';
-
-let sam = new SamJs();
-
-// Play "Hello world" over the speaker.
-// This returns a Promise resolving after playback has finished.
-sam.speak('Hello world');
-
-// Generate a wave file containing "Hello world" and download it.
-sam.download('Hello world');
-
-// Render the passed text as 8bit wave buffer array (Uint8Array).
-const buf8 = sam.buf8('Hello world');
-
-// Render the passed text as 32bit wave buffer array (Float32Array).
-const buf32 = sam.buf32('Hello world');
-```
-
-`index.html`, `guess.html` and `star-spangled-banner.html` are the
-upstream browser demos.
-
 ## Original docs
 
 A copy of the original manual is bundled here, see the
@@ -177,9 +145,8 @@ This project stands on other people's work:
 - **[s-macke/SAM](https://github.com/s-macke/SAM)** — the C
   adaptation by Stefan Macke
 - **[discordier/sam](https://github.com/discordier/sam)** — the
-  JavaScript port by Christian Schiffler, which `src/` is a copy
-  of and which the Python engine was ported from, with
-  refactorings by [Vidar Hokstad](https://github.com/vidarh/SAM)
+  JavaScript port by Christian Schiffler, which the Python engine
+  was ported from, with refactorings by [Vidar Hokstad](https://github.com/vidarh/SAM)
   and [8BitPimp](https://github.com/8BitPimp/SAM)
 - **CMU Pronouncing Dictionary** — Carnegie Mellon University
 

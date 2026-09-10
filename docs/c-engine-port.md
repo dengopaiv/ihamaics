@@ -107,7 +107,7 @@ Recommend **C99**, for concrete reasons rather than taste:
 - No C++ runtime to redistribute. `votraxsc01` ships a 216 KB DLL with
   no dependency beyond the CRT; we should match that.
 - The reference implementations to port *from* — `s-macke/SAM` and the
-  `c-conv` transliterations already in `test/` — are C.
+  `c-conv` transliterations that were then in `test/` — are C.
 
 ## Deployment
 
@@ -148,8 +148,10 @@ integer arithmetic throughout, so bit-exactness is achievable and is
 the only honest test — a renderer that is merely "close" has a
 different voice, and this project exists for the voice.
 
-The `test/renderer/fixtures/` corpus from the JavaScript side is a
-second, independent oracle for the same code path.
+During the port, the `test/renderer/fixtures/` corpus from the
+JavaScript tree served as a second, independent oracle for the same
+code path. That tree is no longer vendored here; the golden vectors
+above are what the build checks against now.
 
 `native/tools/check_golden.py` renders each case from its recorded
 inputs and diffs against the recorded output; it is what proved the
