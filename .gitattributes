@@ -7,3 +7,8 @@
 # The pronunciation dictionary is data, not source; keep it LF so the
 # checkout matches what gets packaged.
 nvda-addon/synthDrivers/sam/cmudict.txt text eol=lf
+
+# The release archive and the addon are binary and must round-trip
+# exactly; do not let line-ending normalisation near them.
+*.zip binary
+*.nvda-addon binary

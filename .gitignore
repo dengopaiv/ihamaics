@@ -8,7 +8,9 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Build artifacts
+# Build artifacts. The PyInstaller build of sam_gui.py and the built
+# addon are not shipped: the addon goes inside sam-native.zip, and
+# the Python app stays source-only.
 build/sam_gui/
 dist/SAM.exe
 *.nvda-addon
@@ -27,8 +29,10 @@ native/data/
 *.exp
 *.pdb
 
-# Archives
+# Archives. sam-native.zip is the release - the addon and the desktop
+# app, both native - and it is the one archive that is tracked here.
 *.zip
+!/sam-native.zip
 
 # Test outputs
 *.wav

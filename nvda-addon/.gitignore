@@ -10,5 +10,7 @@ reference-addon.nvda-addon
 # Test outputs
 test_output.wav
 
-# Build output (regenerated from source)
+# Build output (regenerated from source; the release copy lives
+# inside sam-native.zip at the repository root)
 sam.nvda-addon
+sam-python-fallback.nvda-addon

@@ -1,8 +1,9 @@
 # IHAMAICS — I Have A Mouth And I Can Scream
 
-A pure Python port of SAM (Software Automatic Mouth), the 1982
-Commodore 64 speech synthesizer, packaged as an NVDA screen reader
-voice and a small desktop app.
+SAM (Software Automatic Mouth), the 1982 Commodore 64 speech
+synthesizer, as an NVDA screen reader voice and a small desktop app.
+It was ported to Python first and then to C. Both ports are here;
+the C one is what ships.
 
 SAM was the first commercial all-software speech synthesizer for
 home computers, published by Don't Ask Software (Mark Barton). It
@@ -13,12 +14,24 @@ brings that voice back as a working accessibility tool.
 
 | Path | What it is |
 |------|------------|
-| `nvda-addon/` | The NVDA synthesizer addon — the main product |
+| `sam-native.zip` | **The release** — the addon and the desktop app, both native |
+| `nvda-addon/` | Source of the NVDA synthesizer addon |
 | `native/` | The C engine: renderer, parser, reciter, dictionary |
 | `gui-native/` | `sam_gui.exe` — the desktop app with no Python behind it |
+| `tools/make_release.py` | Builds `sam-native.zip` |
 | `sam_gui.py` | wxPython app: type text, preview, save a WAV |
 | `src/`, `test/`, `dist/` | The upstream JavaScript port, kept as reference |
 | `docs/` | The original 1982 SAM manual and scans |
+
+`sam-native.zip` is the only archive in the repository and the only
+thing a user has to download. Everything in it is native: the addon
+carries the C renderer with no Python fallback, and `sam_gui.exe` has
+no Python behind it at all, so neither one asks for a runtime first.
+
+The Python addon and `sam_gui.py` are not in the archive and are not
+released as binaries. They stay here as source — they are the
+reference the C engine is checked against, word for word, and they
+still run from a checkout.
 
 The engine in `nvda-addon/synthDrivers/sam/` is a direct port of the
 JavaScript in `src/` — every module names the `.es6` file it came
@@ -29,8 +42,8 @@ implementation and test corpus.
 
 Needs NVDA 2023.1 or newer; last tested on 2025.3.2.
 
-1. Download `sam.nvda-addon` from the releases page
-2. Double-click it with NVDA running, and accept the prompt
+1. Download `sam-native.zip` and unpack it
+2. Double-click `sam.nvda-addon` with NVDA running, accept the prompt
 3. Restart NVDA
 4. NVDA menu → Preferences → Settings → Speech
 5. Choose "SAM (Software Automatic Mouth)"
@@ -43,9 +56,19 @@ the whole utterance is synthesized. Pronunciation comes from the
 CMU Pronouncing Dictionary (134k words) with SAM's own rule-based
 reciter as the fallback.
 
-Build the addon from source:
+Rebuild the release from source — it repackages the addon,
+validates it, and writes the archive:
+
+    python tools/make_release.py
+
+It needs the DLLs and both executables built first, and names the
+command for whatever is missing. For the addon on its own:
 
     python nvda-addon/package_addon.py
+
+which builds the native addon. Add `--python-fallback` for a build
+that keeps the Python renderer in as a fallback; that variant is for
+working on the port, and is not what gets released.
 
 More detail in [nvda-addon/README.md](nvda-addon/README.md).
 
@@ -55,7 +78,8 @@ Two builds of the same application, and they produce byte-identical
 audio for the same settings.
 
 **Native** — one self-contained executable, no Python, no wxPython,
-no runtime to install first:
+no runtime to install first. Prebuilt for both architectures in
+`sam-native.zip`; to build it yourself:
 
     python native\tools\gen_dict.py
     gui-native\build.cmd x64
@@ -66,15 +90,14 @@ plus four things the engine always supported and no GUI exposed:
 phoneme mode, a Convert to Phonemes button, sing mode, and a voice
 preset dropdown. See [docs/native-gui.md](docs/native-gui.md).
 
-**Python** —
+**Python** — source only, run from a checkout:
 
     python sam_gui.py
 
 Type text, set Speed, Pitch, Mouth, Throat and Inflection, then
-Preview or Render to WAV. Needs `wxPython`. To build a standalone
-executable, from the repository root:
-
-    pyinstaller sam_gui.spec
+Preview or Render to WAV. Needs `wxPython`. `pyinstaller
+sam_gui.spec` still builds a standalone executable from it, but that
+build is not released — the native one is.
 
 ## The C engine
 

@@ -1,25 +1,40 @@
-"""Package SAM NVDA addon into .nvda-addon file.
+"""Package the SAM NVDA addon into a .nvda-addon file.
 
-    python nvda-addon/package_addon.py                 standard build
-    python nvda-addon/package_addon.py --native-only    C renderer only
+    python nvda-addon/package_addon.py                     the shipped addon
+    python nvda-addon/package_addon.py --python-fallback   with the Python renderer
 
-The native-only build omits the pure Python renderer and its tables and
-ships renderer_native_only.py as renderer.py, so the C library is the
-only thing that can produce audio. It exists to prove which engine is
-doing the work: with no fallback, a library that fails to load raises
-instead of quietly sounding identical but slower.
+The shipped addon is native only: the pure Python renderer and its
+tables are left out, and renderer_native_only.py goes in as renderer.py,
+so the C library is the only thing that can produce audio. With no
+fallback, a library that fails to load raises instead of quietly
+sounding identical but slower.
+
+--python-fallback rebuilds the older shape, Python renderer included.
+It is there for working on the port from a source checkout; it is not
+what gets released. The Python renderer stays in the repository as the
+reference the C engine is verified against.
 """
 import sys
+import time
 import zipfile
 import os
 
-NATIVE_ONLY = '--native-only' in sys.argv[1:]
+PYTHON_FALLBACK = '--python-fallback' in sys.argv[1:]
+NATIVE_ONLY = not PYTHON_FALLBACK
 
 addon_dir = os.path.dirname(os.path.abspath(__file__))
 output_file = os.path.join(
-    addon_dir, 'sam-native-only.nvda-addon' if NATIVE_ONLY else 'sam.nvda-addon')
+    addon_dir,
+    'sam-python-fallback.nvda-addon' if PYTHON_FALLBACK else 'sam.nvda-addon')
 
 SKIP_DIRS = {'__pycache__'}
+
+manifest_path = os.path.join(addon_dir, 'manifest.ini')
+notice_path = os.path.join(os.path.dirname(addon_dir), 'NOTICE.md')
+licence_path = os.path.join(os.path.dirname(addon_dir), 'LICENSE')
+shim_path = os.path.join(addon_dir, 'renderer_native_only.py')
+synth_dir = os.path.join(addon_dir, 'synthDrivers', 'sam')
+build_dir = os.path.join(os.path.dirname(addon_dir), 'native', 'build')
 
 # Omitted from a native-only build: the Python renderer and its tables.
 NATIVE_ONLY_OMIT = {'renderer.py', 'renderer_tables.py'}
@@ -62,6 +77,31 @@ def clean_python(content):
     return '\n'.join(cleaned) + '\n'
 
 
+# Every entry gets one timestamp, taken from the newest input. zipfile
+# would otherwise stamp "now" on each build, and the addon is packed
+# into sam-native.zip, which is tracked - an unchanged tree has to
+# rebuild to the same bytes rather than a fresh 3 MB diff.
+def newest_input_time():
+    paths = [manifest_path, notice_path, licence_path, shim_path]
+    for dirpath, dirnames, filenames in os.walk(synth_dir):
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+        paths += [os.path.join(dirpath, f) for f in filenames]
+    for arch in ('x64', 'x86'):
+        dll = os.path.join(build_dir, f'sam_render-{arch}.dll')
+        if os.path.exists(dll):
+            paths.append(dll)
+    return time.localtime(max(os.path.getmtime(p) for p in paths))[:6]
+
+
+def write(zf, name, data):
+    info = zipfile.ZipInfo(name, STAMP)
+    info.compress_type = zipfile.ZIP_DEFLATED
+    info.external_attr = 0o644 << 16
+    zf.writestr(info, data)
+
+
+STAMP = newest_input_time()
+
 # Remove old addon file if exists
 if os.path.exists(output_file):
     os.remove(output_file)
@@ -71,41 +111,39 @@ total_cleaned = 0
 
 with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as zf:
     # Add manifest.ini
-    manifest_path = os.path.join(addon_dir, 'manifest.ini')
     manifest_content = open(manifest_path, 'r', encoding='utf-8').read()
-    if NATIVE_ONLY:
-        # Distinguishable in NVDA's add-on list, and a higher version so it
-        # installs cleanly over the standard build.
+    if PYTHON_FALLBACK:
+        # Distinguishable in NVDA's add-on list, so a fallback build that
+        # got installed by accident is not mistaken for the release.
         manifest_content = manifest_content.replace(
             'summary = "SAM (Software Automatic Mouth) Synthesizer"',
-            'summary = "SAM (Software Automatic Mouth) Synthesizer [native only]"')
+            'summary = "SAM (Software Automatic Mouth) Synthesizer [python fallback]"')
         manifest_content = manifest_content.replace(
-            'version = 1.4.0', 'version = 1.4.1')
+            'Speech is rendered by a native C engine.',
+            'Uses a native renderer for low latency, falling back to pure '
+            'Python if it cannot be loaded.')
     manifest_bytes = manifest_content.encode('utf-8')
     total_original += len(manifest_bytes)
     total_cleaned += len(manifest_bytes)
-    zf.writestr('manifest.ini', manifest_bytes)
+    write(zf, 'manifest.ini', manifest_bytes)
     print(f'Added: manifest.ini')
 
     # Ship the third-party notices with the addon (CMU's licence requires it)
-    notice_path = os.path.join(os.path.dirname(addon_dir), 'NOTICE.md')
     notice_bytes = open(notice_path, 'rb').read()
     total_original += len(notice_bytes)
     total_cleaned += len(notice_bytes)
-    zf.writestr('NOTICE.md', notice_bytes)
+    write(zf, 'NOTICE.md', notice_bytes)
     print(f'Added: NOTICE.md')
 
     # And the licence statement, so someone who unpacks the addon can see
     # the position without going to the repository.
-    licence_path = os.path.join(os.path.dirname(addon_dir), 'LICENSE')
     licence_bytes = open(licence_path, 'rb').read()
     total_original += len(licence_bytes)
     total_cleaned += len(licence_bytes)
-    zf.writestr('LICENSE', licence_bytes)
+    write(zf, 'LICENSE', licence_bytes)
     print(f'Added: LICENSE')
 
     # Add synthDrivers directory
-    synth_dir = os.path.join(addon_dir, 'synthDrivers', 'sam')
     for dirpath, dirnames, filenames in os.walk(synth_dir):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
         for filename in sorted(filenames):
@@ -131,7 +169,7 @@ with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as zf:
             cleaned_size = len(cleaned_bytes)
             saved = original_size - cleaned_size
 
-            zf.writestr(relpath, cleaned_bytes)
+            write(zf, relpath, cleaned_bytes)
             total_original += original_size
             total_cleaned += cleaned_size
 
@@ -142,20 +180,18 @@ with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as zf:
 
     # Native-only build: stand in a renderer.py that only calls the library.
     if NATIVE_ONLY:
-        shim_path = os.path.join(addon_dir, 'renderer_native_only.py')
         shim = clean_python(open(shim_path, 'r', encoding='utf-8').read())
         shim_bytes = shim.encode('utf-8')
-        zf.writestr('synthDrivers/sam/renderer.py', shim_bytes)
+        write(zf, 'synthDrivers/sam/renderer.py', shim_bytes)
         total_original += len(shim_bytes)
         total_cleaned += len(shim_bytes)
         print(f'Added: synthDrivers/sam/renderer.py '
               f'(from renderer_native_only.py, {len(shim_bytes)/1024:.1f} KB)')
 
-    # Native renderer, if built. Both architectures ship: NVDA is x64 now
-    # but 32-bit builds still exist, and native.py picks at load time.
-    # Absent is not an error for the standard build - renderer.py falls
-    # back to the Python path. For a native-only build it is fatal.
-    build_dir = os.path.join(os.path.dirname(addon_dir), 'native', 'build')
+    # Native renderer. Both architectures ship: NVDA is x64 now but
+    # 32-bit builds still exist, and native.py picks at load time.
+    # Missing DLLs are fatal for the shipped addon; for a fallback build
+    # they only mean renderer.py takes the Python path.
     shipped_dlls = 0
     for arch in ('x64', 'x86'):
         dll_path = os.path.join(build_dir, f'sam_render-{arch}.dll')
@@ -165,7 +201,7 @@ with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as zf:
         shipped_dlls += 1
         with open(dll_path, 'rb') as f:
             dll_bytes = f.read()
-        zf.writestr(f'synthDrivers/sam/sam_render-{arch}.dll', dll_bytes)
+        write(zf, f'synthDrivers/sam/sam_render-{arch}.dll', dll_bytes)
         total_original += len(dll_bytes)
         total_cleaned += len(dll_bytes)
         print(f'Added: synthDrivers/sam/sam_render-{arch}.dll '
