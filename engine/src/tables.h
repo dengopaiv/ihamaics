@@ -25,6 +25,13 @@
 #define SAM_TIME_TABLE_COLS          5
 
 /*
+ * The largest value in sam_freq1..3, measured here so the C can
+ * state a bound on it. voice.c relies on it (R.2): the mouth and
+ * throat transform keeps any frequency up to 128 within a byte.
+ */
+#define SAM_FREQ_MAX                 127
+
+/*
  * Formant 1 frequency of each phoneme, before the voice's mouth
  * setting scales it (R.2). Byte 0 of FREQUENCY_DATA.
  */
