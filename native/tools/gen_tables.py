@@ -6,8 +6,13 @@ changes, so the C tables are generated from the Python ones and never
 edited directly. Run from the repository root after any table change:
 
     python native/tools/gen_tables.py
+    python native/tools/gen_tables.py --check
 
-Writes native/src/sam_tables.h and native/src/sam_tables.c.
+Writes native/src/sam_tables.h and native/src/sam_tables.c. With --check
+it writes nothing, and exits 1 if either file differs from what it would
+write (line endings aside). Added in stage R.1 of the C17 rewrite, to
+show the frozen tables still agree with the Python; engine/'s own
+generator, engine/tools/gen_tables.py, has the same switch.
 """
 import os
 import sys
@@ -106,11 +111,27 @@ def main():
         c.append('\n')
     c.append(emit_2d('sam_time_table', time_rows, 'uint8_t'))
 
+    files = {'sam_tables.h': ''.join(h), 'sam_tables.c': ''.join(c)}
+    if '--check' in sys.argv[1:]:
+        stale = []
+        for name, text in files.items():
+            try:
+                with open(os.path.join(OUT, name), encoding='utf-8', newline='') as fh:
+                    disk = fh.read().replace('\r\n', '\n')
+            except FileNotFoundError:
+                disk = None
+            if disk != text:
+                stale.append(name)
+        if stale:
+            print('out of date: ' + ', '.join('native/src/' + s for s in stale))
+            sys.exit(1)
+        print('native/src/sam_tables.[ch] current')
+        return
+
     os.makedirs(OUT, exist_ok=True)
-    with open(os.path.join(OUT, 'sam_tables.h'), 'w', encoding='utf-8', newline='\n') as fh:
-        fh.write(''.join(h))
-    with open(os.path.join(OUT, 'sam_tables.c'), 'w', encoding='utf-8', newline='\n') as fh:
-        fh.write(''.join(c))
+    for name, text in files.items():
+        with open(os.path.join(OUT, name), 'w', encoding='utf-8', newline='\n') as fh:
+            fh.write(text)
 
     total = sum(len(v) for _, v, _ in tables_1d) + sum(len(r) for r in time_rows)
     for name, values, _ in tables_1d:

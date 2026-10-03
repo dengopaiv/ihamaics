@@ -52,6 +52,7 @@ endif()
 
 set(SAM_SOURCES
     src/version.c
+    src/tables.c
 )
 
 # The same sources twice: a static library for the tools and tests, and
@@ -77,6 +78,17 @@ if(BUILD_TESTING)
     add_test(NAME abi COMMAND test_abi)
     set_tests_properties(abi PROPERTIES LABELS quick)
 
+    # The dump tools: one per boundary the verifiers check, each printing
+    # what its namesake in native/tools prints. They go in the top of the
+    # build tree, where native/tools/_build.py looks for them.
+    foreach(tool dump_tables)
+        add_executable(${tool} tools/${tool}.c)
+        target_link_libraries(${tool} PRIVATE sam_static)
+        target_include_directories(${tool} PRIVATE src)
+        target_compile_options(${tool} PRIVATE ${SAM_WARNINGS})
+        target_compile_definitions(${tool} PRIVATE ${SAM_DEFINES})
+    endforeach()
+
     # The differential verifiers in native/tools, run against this build
     # (--impl engine, with SAM_ENGINE_BUILD naming this leg's tree). Each
     # exits 77 - a skip, not a failure - until the stage that gives the
@@ -86,6 +98,16 @@ if(BUILD_TESTING)
     # Windows only for now: the verifiers look for .exe dump tools and a
     # .dll. The Linux legs are verified from Windows in stage R.10.
     find_package(Python3 COMPONENTS Interpreter)
+
+    # Generated sources still agree with the Python they come from. Needs
+    # only Python, so it runs on every leg, Linux included.
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME tables_current
+                 COMMAND Python3::Interpreter
+                         "${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_tables.py" --check)
+        set_tests_properties(tables_current PROPERTIES LABELS quick)
+    endif()
+
     if(WIN32 AND Python3_Interpreter_FOUND)
         set(SAM_TOOLS "${CMAKE_CURRENT_SOURCE_DIR}/../native/tools")
         # name, then arguments; counts are the exit tests of the plan.
