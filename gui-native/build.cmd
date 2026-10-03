@@ -1,11 +1,17 @@
 @echo off
 rem Build the native SAM GUI: one self-contained exe, no Python.
-rem Usage:  gui-native\build.cmd [x64|x86]      (default x64)
+rem Usage:  gui-native\build.cmd [x64]      (default x64)
+rem x64 only: no 32-bit build of anything is produced. Releases up to
+rem 1.5.0 also carried sam_gui-x86.exe; this build no longer makes one.
 setlocal enabledelayedexpansion
 set "HERE=%~dp0"
 set "ROOT=%HERE%.."
 set "ARCH=%~1"
 if "%ARCH%"=="" set "ARCH=x64"
+if /i not "%ARCH%"=="x64" (
+    echo ERROR: only x64 is built. 32-bit builds are not produced.
+    exit /b 1
+)
 
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 if not exist "!VSWHERE!" (

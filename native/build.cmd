@@ -1,5 +1,7 @@
 @echo off
-rem Build sam_render DLLs for both architectures NVDA ships.
+rem Build the sam_render DLL for 64-bit NVDA (2026.1 and later).
+rem x64 only: no 32-bit build of anything is produced. Releases up to
+rem 1.5.0 also carried an x86 DLL; this build no longer makes one.
 rem Carries the renderer (sam_render.h, ABI 1) and the front end
 rem (sam_text.h, ABI 1) side by side; the addon uses only the renderer.
 rem Usage:  native\build.cmd          (run from anywhere)
@@ -22,9 +24,8 @@ echo Using %VSPATH%
 if not exist "%HERE%build" mkdir "%HERE%build"
 
 call :build x64 || exit /b 1
-call :build x86 || exit /b 1
 echo.
-echo Done. DLLs in %HERE%build
+echo Done. DLL in %HERE%build
 exit /b 0
 
 :build

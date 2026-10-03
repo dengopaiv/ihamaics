@@ -14,11 +14,12 @@ import os
 import random
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _build import ROOT, engine_dll, skip, take_impl  # noqa: E402
+IMPL = take_impl()
 sys.path.insert(0, os.path.join(ROOT, 'nvda-addon', 'synthDrivers', 'sam'))
 
 GOLDEN = os.path.join(ROOT, 'native', 'tests', 'golden')
-BUILD = os.path.join(ROOT, 'native', 'build')
 
 
 class Phoneme(ctypes.Structure):
@@ -38,13 +39,18 @@ ERRORS = {-1: 'SAM_E_BADARG', -2: 'SAM_E_BADSPEED',
 
 
 def load():
-    name = ("sam_render-x64.dll" if ctypes.sizeof(ctypes.c_void_p) == 8
-            else "sam_render-x86.dll")
-    path = os.path.join(BUILD, name)
+    path = engine_dll()
+    name = os.path.basename(path)
     if not os.path.exists(path):
-        print(f'{name} not built; run native\\build.cmd first')
+        print(f'{name} not built; run '
+              + ('engine/tools/build_matrix.py' if IMPL == 'engine'
+                 else 'native\\build.cmd') + ' first')
         return None
     lib = ctypes.cdll.LoadLibrary(path)
+    if IMPL == 'engine' and not hasattr(lib, 'sam_render'):
+        # The rewrite's DLL exists from stage R.0 and gains sam_render
+        # in R.4; until then there is nothing here to check.
+        skip(f'{name} does not export sam_render yet (stage R.4)')
     lib.sam_abi_version.restype = ctypes.c_int
     lib.sam_abi_version.argtypes = []
     lib.sam_render.restype = ctypes.c_int

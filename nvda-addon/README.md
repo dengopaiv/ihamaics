@@ -58,9 +58,10 @@ which also ship inside the built addon.
 
     python nvda-addon/package_addon.py
 
-writes `sam.nvda-addon`. It needs `sam_render-x64.dll` and
-`sam_render-x86.dll` in `native/build/` - run `native\build.cmd`
-first - and fails rather than shipping an addon that cannot render.
+writes `sam.nvda-addon`. It needs `sam_render-x64.dll` in
+`native/build/` - run `native\build.cmd` first - and fails rather than
+shipping an addon that cannot render. The addon is 64-bit only and needs
+NVDA 2026.1 or later; releases up to 1.5.0 also carried a 32-bit DLL.
 
 `--python-fallback` builds the older shape instead, with the pure
 Python renderer left in as a fallback and a `[python fallback]` marker

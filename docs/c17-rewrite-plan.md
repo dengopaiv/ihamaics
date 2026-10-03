@@ -5,13 +5,14 @@ about the rewrite; it is the baseline later work is measured against.
 When something here turns out wrong, it is corrected in place with a dated
 note (*Overtaken 2026-…, §…*), not rewritten silently.
 
-**Status: planning. No rewrite code exists.**
+**Status: stage R.0 done and merged (2026-10-03). R.1 is next.**
 
 | Step | State | Logged in | Open |
 |---|---|---|---|
 | Survey of the other rewrites in this tree | done 2026-10-03 | §11 | — |
 | Decisions for the author | D1–D5 decided 2026-10-03 | §9 | — |
-| Stage R.0 onward | not started | — | — |
+| R.0 scaffold and freeze | done 2026-10-03 | [docs/c17/00](c17/00-r0-scaffold.md) | — |
+| R.1 onward | not started | — | — |
 
 ---
 
@@ -229,7 +230,7 @@ stage in `docs/c17/`, written as it happens.
 | R.0 | Scaffold and freeze | see below |
 | R.1 | Tables | all 2,392 table values identical (`verify_tables.py`); generators run with `--check` |
 | R.2 | Voice | all 65,536 (mouth, throat) pairs (`verify_frames.py`) |
-| R.3 | Frames | `verify_frames.py`, `verify_prepare.py` 3,000 randomised cases, all 8 rows |
+| R.3 | Frames | `verify_frames.py`, `verify_prepare.py 3000` (3,000 randomised cases, all 8 rows; the default is 400, see docs/c17/00 §0.1) |
 | R.4 | Renderer | 16 golden vectors byte for byte (`check_golden.py`, `verify_render.py`), and `verify_render.py`'s randomised fuzz against the Python with a count at least the 485 the port passed |
 | R.5 | Parser | `verify_parser.py` over the whole dictionary |
 | R.6 | Reciter and numbers | `verify_reciter.py`; `verify_text.py`'s `expand_numbers` part |
@@ -490,3 +491,19 @@ dictionary words are fixed in R.12. Their cause was traced to the 22
 commented lines of `cmudict.txt`. One suspicion was checked and ruled
 out: `fine(2)` has a comment, but the main `fine` entry wins, and the
 word speaks. Written up in §6.1. No code was changed.
+
+**2026-10-03 — stage R.0 (Opus 5.5, as the session).** Done on branch
+`c17-r0-scaffold`. The chapter is [docs/c17/00](c17/00-r0-scaffold.md).
+What turned out different from this plan:
+
+- **The verifier switch.** Three verifiers had private copies of the
+  build step, so the switch needed a refactor first. It was proved
+  output-identical against a baseline taken before any edit.
+- **The R.3 exit count.** `verify_prepare.py` runs 400 random cases by
+  default, not 3,000; R.3 now names the argument.
+- **The freeze marker** is `native/README.md`, not a line in each source
+  file. Four of those files are generated, and touching all of them
+  would trip `make_release.py`'s staleness check.
+- **The latency grid of §7** is too noisy under the Balanced power plan
+  to support a claim. The 20-word sentence figure (1.64 ms median, real
+  time factor 0.0002) is stable, and is the one R.9 compares against.

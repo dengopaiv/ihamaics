@@ -136,7 +136,9 @@ def main():
         print('  warn  no native DLLs bundled; the addon will use the '
               'Python renderer')
     else:
-        expected = {'sam_render-x64.dll': 0x8664, 'sam_render-x86.dll': 0x14c}
+        # x64 only. A 32-bit DLL in the package is a failure, not a
+        # surprise to warn about: no 32-bit build of anything ships.
+        expected = {'sam_render-x64.dll': 0x8664}
         tmp = tempfile.mkdtemp()
         try:
             for d in dlls:
@@ -144,7 +146,9 @@ def main():
                 zf.extract(d, tmp)
                 m = pe_machine(os.path.join(tmp, d))
                 want = expected.get(base)
-                if want is None:
+                if m == 0x14c:
+                    fail(f'{base} is a 32-bit DLL; none may ship', problems)
+                elif want is None:
                     print(f'  warn  unexpected DLL {base}')
                 elif m != want:
                     fail(f'{base} is {MACHINE.get(m, hex(m))}, '

@@ -24,7 +24,8 @@ import string
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _build import ROOT, build_and_run  # noqa: E402
+from _build import ROOT, build_and_run, take_impl  # noqa: E402
+take_impl()
 
 sys.path.insert(0, os.path.join(ROOT, 'nvda-addon', 'synthDrivers', 'sam'))
 

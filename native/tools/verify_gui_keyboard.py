@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check that the SAM GUI can be driven from the keyboard alone.
 
-    python native/tools/verify_gui_keyboard.py [x64|x86]
+    python native/tools/verify_gui_keyboard.py [x64]
 
 verify_gui.py proves the executable renders the right audio. It says
 nothing about whether anyone can reach the button that renders it.
@@ -37,6 +37,13 @@ import os
 import subprocess
 import sys
 import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _build import skip, take_impl  # noqa: E402
+if take_impl() == 'engine':
+    # No GUI is built against engine/ until stage R.8 of the C17
+    # rewrite (docs/c17-rewrite-plan.md).
+    skip('no GUI is built against engine/ until stage R.8')
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -339,7 +346,8 @@ def check(arch):
 
 
 def main():
-    arches = [a for a in sys.argv[1:] if a in ('x64', 'x86')] or ['x64', 'x86']
+    # x64 only since 2026-10-03; no 32-bit build is produced.
+    arches = ['x64']
 
     total = 0
     checked = 0

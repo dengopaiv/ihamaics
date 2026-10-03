@@ -86,10 +86,9 @@ def newest_input_time():
     for dirpath, dirnames, filenames in os.walk(synth_dir):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
         paths += [os.path.join(dirpath, f) for f in filenames]
-    for arch in ('x64', 'x86'):
-        dll = os.path.join(build_dir, f'sam_render-{arch}.dll')
-        if os.path.exists(dll):
-            paths.append(dll)
+    dll = os.path.join(build_dir, 'sam_render-x64.dll')
+    if os.path.exists(dll):
+        paths.append(dll)
     return time.localtime(max(os.path.getmtime(p) for p in paths))[:6]
 
 
@@ -188,12 +187,13 @@ with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as zf:
         print(f'Added: synthDrivers/sam/renderer.py '
               f'(from renderer_native_only.py, {len(shim_bytes)/1024:.1f} KB)')
 
-    # Native renderer. Both architectures ship: NVDA is x64 now but
-    # 32-bit builds still exist, and native.py picks at load time.
-    # Missing DLLs are fatal for the shipped addon; for a fallback build
-    # they only mean renderer.py takes the Python path.
+    # Native renderer, x64 only: the addon needs 64-bit NVDA 2026.1 or
+    # later, and no 32-bit build of anything is produced. Releases up to
+    # 1.5.0 also carried sam_render-x86.dll.
+    # A missing DLL is fatal for the shipped addon; for a fallback build
+    # it only means renderer.py takes the Python path.
     shipped_dlls = 0
-    for arch in ('x64', 'x86'):
+    for arch in ('x64',):
         dll_path = os.path.join(build_dir, f'sam_render-{arch}.dll')
         if not os.path.exists(dll_path):
             print(f'Skipped: sam_render-{arch}.dll (not built)')

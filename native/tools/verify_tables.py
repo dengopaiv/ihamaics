@@ -11,18 +11,15 @@ Exit status is 0 when every table matches, 1 otherwise.
 """
 import os
 import re
-import shutil
-import subprocess
 import sys
-import tempfile
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _build import ROOT, build_and_run, take_impl  # noqa: E402
+take_impl()
 sys.path.insert(0, os.path.join(ROOT, 'nvda-addon', 'synthDrivers', 'sam'))
 
 import renderer_tables as rt  # noqa: E402
 
-SRC = os.path.join(ROOT, 'native', 'src')
-TOOLS = os.path.join(ROOT, 'native', 'tools')
 
 
 def unpack(packed, shift):
@@ -50,48 +47,9 @@ def expected():
     }
 
 
-def find_vs():
-    vswhere = os.path.join(os.environ.get('ProgramFiles(x86)', r'C:\Program Files (x86)'),
-                           'Microsoft Visual Studio', 'Installer', 'vswhere.exe')
-    if not os.path.exists(vswhere):
-        return None
-    out = subprocess.run(
-        [vswhere, '-latest', '-products', '*', '-requires',
-         'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
-         '-property', 'installationPath'],
-        capture_output=True, text=True).stdout.strip()
-    return out or None
-
-
 def run_dumper():
     """Compile and run dump_tables.c, returning its stdout."""
-    vs = find_vs()
-    if not vs:
-        print('no MSVC toolset found; cannot verify')
-        return None
-    vcvars = os.path.join(vs, 'VC', 'Auxiliary', 'Build', 'vcvarsall.bat')
-    tmp = tempfile.mkdtemp(prefix='samtables')
-    try:
-        exe = os.path.join(tmp, 'dump_tables.exe')
-        bat = os.path.join(tmp, 'go.cmd')
-        with open(bat, 'w') as f:
-            f.write('@echo off\n')
-            f.write(f'call "{vcvars}" x64 >nul 2>nul\n')
-            # Build from inside tmp so .obj files land there. /Fo pointing at
-            # a directory needs a trailing backslash, which the batch parser
-            # then treats as escaping the closing quote.
-            f.write(f'cd /d "{tmp}"\n')
-            f.write(f'cl /nologo /W4 /WX /I "{SRC}" "{os.path.join(TOOLS, "dump_tables.c")}" '
-                    f'"{os.path.join(SRC, "sam_tables.c")}" /Fe:"{exe}" >nul || exit /b 1\n')
-            f.write(f'"{exe}"\n')
-        r = subprocess.run(['cmd', '/c', bat], capture_output=True, text=True)
-        if r.returncode != 0:
-            print('build or run failed:')
-            print(r.stdout or r.stderr)
-            return None
-        return r.stdout
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+    return build_and_run('dump_tables.c', ['sam_tables.c'], text=True)
 
 
 def main():
