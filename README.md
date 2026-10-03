@@ -116,6 +116,10 @@ and the front end, and the results must be identical.
     python native\tools\verify_text.py  :: front end vs Python
     python native\tools\verify_gui.py   :: the exe vs the Python app
 
+A C17 rewrite of this engine is planned, not started: portable CMake
+builds, no Python idioms in the C, and the same output byte for byte.
+See [docs/c17-rewrite-plan.md](docs/c17-rewrite-plan.md).
+
 ## Voice presets
 
 The presets from the original manual. The native app offers them in
