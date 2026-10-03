@@ -5,7 +5,7 @@ about the rewrite; it is the baseline later work is measured against.
 When something here turns out wrong, it is corrected in place with a dated
 note (*Overtaken 2026-…, §…*), not rewritten silently.
 
-**Status: stage R.2 done (2026-10-03). R.3 is next.**
+**Status: stage R.3 done (2026-10-03). R.4 is next.**
 
 | Step | State | Logged in | Open |
 |---|---|---|---|
@@ -14,7 +14,8 @@ note (*Overtaken 2026-…, §…*), not rewritten silently.
 | R.0 scaffold and freeze | done 2026-10-03 | [docs/c17/00](c17/00-r0-scaffold.md) | — |
 | R.1 tables | done 2026-10-03 | [docs/c17/01](c17/01-r1-tables.md) | — |
 | R.2 voice | done 2026-10-03 | [docs/c17/02](c17/02-r2-voice.md) | — |
-| R.3 onward | not started | — | — |
+| R.3 frames | done 2026-10-03 | [docs/c17/03](c17/03-r3-frames.md) | whether real text reaches Q1 and Q2 (R.9) |
+| R.4 onward | not started | — | — |
 
 ---
 
@@ -80,6 +81,11 @@ sorting is recorded with how it was established:
   it relies on with a `_Static_assert` or an `assert`, plus the test that
   measured it. Example: pitches were measured from −194 to 366
   (`sam_internal.h`), so `int16_t` is provably enough and `uint8_t` is not.
+  *Overtaken 2026-10-03, R.3:* a measurement is not a proof. 3,000
+  random cases reach −480 to 658 and a search reached 3,470, with no
+  bound proved, so the pitch row stays `int32_t` (`quirks.h` Q1,
+  [docs/c17/03](c17/03-r3-frames.md) §3.3). The formant and amplitude
+  rows were the ones a proof could narrow, to bytes.
 
 What we do not do is "fix" anything during the rewrite. The three quirks
 in `native-gui.md` (two spaces between words, the 16 unspeakable
@@ -542,3 +548,28 @@ What turned out different from this plan, or was added to it:
 - **The Linux legs compared without the verifiers.** Until R.10, their
   `dump_frames` output is hashed against the Windows legs'. All four
   were identical.
+
+**2026-10-03 — stage R.3 (Opus 5.5, as the session).** Done on branch
+`c17-r3-frames`. The chapter is [docs/c17/03](c17/03-r3-frames.md).
+What turned out different from this plan, or was added to it:
+
+- **`quirks.h` starts with two entries.** Q1 is the pitch row wider
+  than a byte, as `sam_pitch_t`. Q2 is Python's negative index, as
+  `sam_py_index()`. Both are reached in `verify_prepare.py`'s random
+  corpus, and neither is reached in the golden cases. Whether real text
+  reaches them is left to R.9's coverage run, which §5 already plans.
+- **The formant and amplitude rows are bytes, by a proof.** Every value
+  a ramp writes lies between 0 and the row's maximum. The negative
+  amplitude index and the floor of a negative F1 follow, and both went.
+  So did `int(change / width)`, which is C's `/` for `|change| < 2^53`,
+  and the second frame count.
+- **The sorting was measured on the oracle, not by coverage.**
+  `engine/tools/reach_frames.py` runs an instrumented copy of the
+  Python over the verifier's own corpus. §5's gcc `--coverage` run
+  needs the R.5–R.7 corpus, which does not exist yet.
+- **Undefined behaviour in `native/` closed, without changing output.**
+  These were the cast of the inflection product to `int`, `&` on
+  negative signed values, and pitch overflow. Each is now defined, and
+  each differs from the Python only where `native/` was undefined.
+- **The §1.2 example overtaken.** `int16_t` is not provably enough for
+  the pitch row (see the note there).
