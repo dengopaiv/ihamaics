@@ -54,6 +54,7 @@ set(SAM_SOURCES
     src/version.c
     src/tables.c
     src/voice.c
+    src/frames.c
 )
 
 # The same sources twice: a static library for the tools and tests, and
@@ -82,7 +83,7 @@ if(BUILD_TESTING)
     # The dump tools: one per boundary the verifiers check, each printing
     # what its namesake in native/tools prints. They go in the top of the
     # build tree, where native/tools/_build.py looks for them.
-    foreach(tool dump_tables dump_frames)
+    foreach(tool dump_tables dump_frames dump_prepare)
         add_executable(${tool} tools/${tool}.c)
         target_link_libraries(${tool} PRIVATE sam_static)
         target_include_directories(${tool} PRIVATE src)
