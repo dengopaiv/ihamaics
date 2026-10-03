@@ -15,6 +15,10 @@
  *   R.3  int formant and amplitude rows,
  *        negative amplitude indexing,
  *        int(change / width)               docs/c17/03-r3-frames.md 3.2
+ *   R.4  unbounded formant phases,
+ *        sampled-consonant kind -1 and
+ *        the sample table guard,
+ *        the pos < n guards in the loop    docs/c17/04-r4-renderer.md 4.2
  */
 
 #ifndef SAM_QUIRKS_H
@@ -61,5 +65,26 @@ static inline int sam_py_index(int i, int n)
     }
     return (i + n >= 0) ? i + n : -1;
 }
+
+/*
+ * Q3 (R.4). The glottal pulse counters do not wrap.
+ *
+ * process_frames() in renderer.py counts the glottal pulse down from the
+ * frame's pitch, and mem38 from three quarters of it, and resets both
+ * when the pulse reaches 0. In Python's unbounded int a pulse that
+ * starts at 0 or below (a pitch of 0, or a negative one from Q1) only
+ * goes further down, so it never resets again until the utterance ends:
+ * the formants' phases keep running and no voiced consonant is sampled.
+ * Over verify_render.py's 485 random cases, 10 start that way and 68
+ * reset into it, and 78 cases render 1,734,241 formant steps while
+ * stuck (docs/c17/04-r4-renderer.md section 4.3), so the voice depends
+ * on it. A byte counter, which would come round to 0 again, is a
+ * mutant that dies.
+ *
+ * int64_t: the counters start within int32_t (Q1) and fall by one per
+ * formant step, of which an utterance has fewer than 2^40 (FRAMES_MAX
+ * frames, at most 255 steps each), so they cannot overflow.
+ */
+typedef int64_t sam_pulse_t;
 
 #endif /* SAM_QUIRKS_H */

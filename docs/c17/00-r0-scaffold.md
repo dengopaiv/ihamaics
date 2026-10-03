@@ -28,7 +28,7 @@ so later runs could be diffed against it rather than eyeballed:
 | `verify_frames.py` | `sam_set_mouth_throat` matches for all 65,536 (mouth, throat) pairs |
 | `verify_prepare.py` | 416 comparable cases (16 golden + 400 random), all 8 rows |
 | `verify_prepare.py 3000` | 3,015 comparable cases (16 golden + 3,000 random; Python raised `IndexError` on 1, which the C survives) |
-| `verify_render.py 485` | 16 golden cases and 485 random sequences byte-identical |
+| `verify_render.py 485` | 16 golden cases and 485 random sequences byte-identical. *Overtaken 2026-10-03, R.4:* the 485 compared the DLL with itself, not the Python ([04](04-r4-renderer.md) §4.1); against the Python, 470 comparable cases, all identical |
 | `check_golden.py` | all 16 cases byte-identical |
 | `verify_parser.py` | 136,096 cases |
 | `verify_reciter.py` | 146,692 cases |
