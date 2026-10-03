@@ -1,6 +1,6 @@
 # Optional native renderer.
 #
-# Loads sam_render-{x64,x86}.dll if it is present and usable, and exposes
+# Loads sam_render-x64.dll if it is present and usable, and exposes
 # render() with the same contract as renderer.render(). Every failure path
 # returns None so the caller falls back to the Python renderer: the addon
 # must keep speaking even if the library is missing, is built for the
@@ -33,8 +33,9 @@ class _Voice(ctypes.Structure):
 
 
 def _dll_name():
-    return ("sam_render-x64.dll" if ctypes.sizeof(ctypes.c_void_p) == 8
-            else "sam_render-x86.dll")
+    # 64-bit only: the addon needs NVDA 2026.1 or later, which is x64.
+    # Releases up to 1.5.0 also carried sam_render-x86.dll.
+    return "sam_render-x64.dll"
 
 
 def _candidates():

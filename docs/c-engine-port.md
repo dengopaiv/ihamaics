@@ -118,6 +118,11 @@ Confirmed on this machine:
   A DLL built here loads in NVDA without cross-compiling.
 - NVDA still ships 32-bit builds, so ship both and select at runtime.
 
+*Overtaken 2026-10-03.* No 32-bit build is produced any more. The addon
+needs 64-bit NVDA 2026.1 or later, and `native\build.cmd` builds only
+`sam_render-x64.dll`. Releases up to 1.5.0 keep the x86 DLL they
+shipped with. The rest of this section is the reasoning at the time.
+
 `votraxsc01`, already installed, is the working template: it ships
 `sc01-x64.dll` and `sc01-x86.dll` side by side in its `synthDrivers`
 directory and picks between them with

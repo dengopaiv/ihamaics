@@ -6,11 +6,12 @@ behind it. One file, no installer, no runtime to put on the machine first.
 ```
 python native\tools\gen_dict.py     :: once, and after any dictionary change
 gui-native\build.cmd x64
-gui-native\build.cmd x86
 ```
 
-Output is `gui-native/build/sam_gui-{x64,x86}.exe`, about 4.0 MB — most of
-which is the pronunciation dictionary.
+Output is `gui-native/build/sam_gui-x64.exe`, about 4.0 MB — most of
+which is the pronunciation dictionary. x64 only since 2026-10-03: no
+32-bit build of anything is produced. Release 1.5.0 and earlier also
+carried `sam_gui-x86.exe`, which is why the table below names both.
 
 ## Why this needed more than the DLL
 

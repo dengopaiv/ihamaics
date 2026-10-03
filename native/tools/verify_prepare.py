@@ -13,17 +13,16 @@ import json
 import os
 import random
 import shutil
-import subprocess
 import sys
 import tempfile
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _build import ROOT, build_and_run, take_impl  # noqa: E402
+take_impl()
 sys.path.insert(0, os.path.join(ROOT, 'nvda-addon', 'synthDrivers', 'sam'))
 
 from renderer import prepare_frames  # noqa: E402
 
-SRC = os.path.join(ROOT, 'native', 'src')
-TOOLS = os.path.join(ROOT, 'native', 'tools')
 GOLDEN = os.path.join(ROOT, 'native', 'tests', 'golden')
 
 ROWS = ['pitches', 'freq1', 'freq2', 'freq3', 'ampl1', 'ampl2', 'ampl3', 'flags']
@@ -74,57 +73,13 @@ def write_case_file(cases, path):
             f.write('\n')
 
 
-def find_vs():
-    vswhere = os.path.join(os.environ.get('ProgramFiles(x86)', r'C:\Program Files (x86)'),
-                           'Microsoft Visual Studio', 'Installer', 'vswhere.exe')
-    if not os.path.exists(vswhere):
-        return None
-    out = subprocess.run(
-        [vswhere, '-latest', '-products', '*', '-requires',
-         'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
-         '-property', 'installationPath'],
-        capture_output=True, text=True).stdout.strip()
-    return out or None
-
-
 def run_dumper(case_path):
-    vs = find_vs()
-    if not vs:
-        print('no MSVC toolset found; cannot verify')
-        return None
-    vcvars = os.path.join(vs, 'VC', 'Auxiliary', 'Build', 'vcvarsall.bat')
-    tmp = tempfile.mkdtemp(prefix='samprep')
-    try:
-        exe = os.path.join(tmp, 'dump_prepare.exe')
-        bat = os.path.join(tmp, 'go.cmd')
-        log = os.path.join(tmp, 'build.log')
-        inc = os.path.join(ROOT, 'native', 'include')
-        with open(bat, 'w') as f:
-            f.write('@echo off\n')
-            f.write(f'call "{vcvars}" x64 >nul 2>nul\n')
-            f.write(f'cd /d "{tmp}"\n')
-            # cl writes diagnostics to stdout, so log them rather than
-            # discarding them: a swallowed /WX error looks like a silent
-            # failure. _CRT_SECURE_NO_WARNINGS is for the host tool's
-            # fopen/fscanf; the shipped DLL uses neither.
-            f.write(f'cl /nologo /W4 /WX /D_CRT_SECURE_NO_WARNINGS '
-                    f'/I "{SRC}" /I "{inc}" '
-                    f'"{os.path.join(TOOLS, "dump_prepare.c")}" '
-                    f'"{os.path.join(SRC, "sam_frames.c")}" '
-                    f'"{os.path.join(SRC, "sam_tables.c")}" '
-                    f'/Fe:"{exe}" > "{log}" 2>&1 || exit /b 1\n')
-            f.write(f'"{exe}" "{case_path}"\n')
-        r = subprocess.run(['cmd', '/c', bat], capture_output=True, text=True)
-        if r.returncode != 0:
-            print(f'build or run failed (exit {r.returncode}); dumper exit codes: '
-                  f'2=bad args/open, 3=case parse, 4=prepare_frames failed')
-            if os.path.exists(log):
-                print(open(log, encoding='utf-8', errors='replace').read())
-            print(r.stdout[-2000:] or r.stderr[-2000:])
-            return None
-        return r.stdout
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+    # _CRT_SECURE_NO_WARNINGS is for the host tool's fopen/fscanf; the
+    # shipped DLL uses neither. Dumper exit codes: 2=bad args/open,
+    # 3=case parse, 4=prepare_frames failed.
+    return build_and_run('dump_prepare.c', ['sam_frames.c', 'sam_tables.c'],
+                         args=(case_path,), text=True,
+                         defines=('_CRT_SECURE_NO_WARNINGS',))
 
 
 def main():

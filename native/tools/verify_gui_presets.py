@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check that the preset combo and the spin controls agree, in the real GUI.
 
-    python native/tools/verify_gui_presets.py [x64|x86]
+    python native/tools/verify_gui_presets.py [x64]
 
 verify_gui.py proves the executable renders the right audio for a given
 set of numbers, and it reaches the presets by passing their numbers in.
@@ -31,7 +31,11 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _build import ROOT  # noqa: E402
+from _build import ROOT, skip, take_impl  # noqa: E402
+if take_impl() == 'engine':
+    # No GUI is built against engine/ until stage R.8 of the C17
+    # rewrite (docs/c17-rewrite-plan.md).
+    skip('no GUI is built against engine/ until stage R.8')
 
 sys.path.insert(0, os.path.join(ROOT, 'nvda-addon', 'synthDrivers', 'sam'))
 
@@ -281,7 +285,8 @@ def check(arch):
 
 
 def main():
-    arches = [a for a in sys.argv[1:] if a in ('x64', 'x86')] or ['x64', 'x86']
+    # x64 only since 2026-10-03; no 32-bit build is produced.
+    arches = ['x64']
 
     total = 0
     checked = 0

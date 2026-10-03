@@ -39,7 +39,8 @@ lives upstream at [discordier/sam](https://github.com/discordier/sam).
 
 ## The NVDA addon
 
-Needs NVDA 2023.1 or newer; last tested on 2025.3.2.
+Needs 64-bit NVDA 2026.1 or newer. The addon is x64 only; release
+1.5.0 and earlier also carried a 32-bit DLL and needed NVDA 2023.1.
 
 1. Download `sam-native.zip` and unpack it
 2. Double-click `sam.nvda-addon` with NVDA running, accept the prompt
@@ -77,8 +78,9 @@ Two builds of the same application, and they produce byte-identical
 audio for the same settings.
 
 **Native** — one self-contained executable, no Python, no wxPython,
-no runtime to install first. Prebuilt for both architectures in
-`sam-native.zip`; to build it yourself:
+no runtime to install first. Prebuilt for 64-bit Windows in
+`sam-native.zip` (release 1.5.0, the one there now, also carries an
+x86 build; later releases do not). To build it yourself:
 
     python native\tools\gen_dict.py
     gui-native\build.cmd x64
@@ -116,9 +118,12 @@ and the front end, and the results must be identical.
     python native\tools\verify_text.py  :: front end vs Python
     python native\tools\verify_gui.py   :: the exe vs the Python app
 
-A C17 rewrite of this engine is planned, not started: portable CMake
+A C17 rewrite of this engine is under way in `engine/`: portable CMake
 builds, no Python idioms in the C, and the same output byte for byte.
-See [docs/c17-rewrite-plan.md](docs/c17-rewrite-plan.md).
+Only the scaffolding exists so far (stage R.0); `native/` is still the
+engine that ships, and is now frozen as the reference. See
+[docs/c17-rewrite-plan.md](docs/c17-rewrite-plan.md) and
+[docs/c17/](docs/c17/).
 
 ## Voice presets
 

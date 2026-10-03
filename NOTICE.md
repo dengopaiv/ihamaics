@@ -84,6 +84,13 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
+## The C17 rewrite (`engine/`)
+
+`engine/` is a rewrite of the C engine in `native/`, planned in
+`docs/c17-rewrite-plan.md`. It is the same work in a new shape, not a new
+engine: everything above applies to it unchanged, and every file in it
+names the file it was rewritten from.
+
 ## This project's own contribution
 
 What is original here is the Python port of the engine, the NVDA

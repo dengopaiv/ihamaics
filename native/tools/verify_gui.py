@@ -8,11 +8,13 @@ struct as the GUI fills it in, and the WAV header the GUI writes. A test
 that shared the sources would pass while the shipped exe was missing its
 dictionary.
 
-Both architectures are checked, because both are shipped.
+x64 only since 2026-10-03, because only x64 is built and shipped.
+Release 1.5.0 and earlier also carried sam_gui-x86.exe, and this checked
+both then.
 
     python native/tools/verify_gui.py
 
-Build them first with gui-native\\build.cmd x64 and x86.
+Build it first with gui-native\\build.cmd x64.
 """
 import os
 import re
@@ -21,7 +23,11 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _build import ROOT  # noqa: E402
+from _build import ROOT, skip, take_impl  # noqa: E402
+if take_impl() == 'engine':
+    # No GUI is built against engine/ until stage R.8 of the C17
+    # rewrite (docs/c17-rewrite-plan.md).
+    skip('no GUI is built against engine/ until stage R.8')
 
 sys.path.insert(0, os.path.join(ROOT, 'nvda-addon', 'synthDrivers', 'sam'))
 
@@ -205,13 +211,12 @@ def check(exe, tmp):
 
 
 def main():
-    exes = [os.path.join(BUILD, n)
-            for n in ('sam_gui-x64.exe', 'sam_gui-x86.exe')]
+    exes = [os.path.join(BUILD, 'sam_gui-x64.exe')]
     missing = [e for e in exes if not os.path.exists(e)]
     if missing:
         for e in missing:
             print('missing: %s' % os.path.relpath(e, ROOT))
-        print('Build with:  gui-native\\build.cmd x64   (and x86)')
+        print('Build with:  gui-native\\build.cmd x64')
         return 1
 
     failures = check_presets_in_sync()

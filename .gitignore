@@ -14,6 +14,10 @@ dist/SAM.exe
 # Native engine build outputs (golden vectors ARE tracked)
 native/build/
 gui-native/build/
+# The C17 rewrite: one build tree per toolchain leg
+# (engine/tools/build_matrix.py; the WSL legs build under $HOME instead).
+engine/build/
+engine/build-*/
 
 # The dictionary blob is generated from cmudict.txt, which is tracked.
 # Regenerate with: python native/tools/gen_dict.py

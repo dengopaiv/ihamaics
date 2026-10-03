@@ -14,10 +14,13 @@ against.
 
 Inputs, and what to run when one of them is missing:
 
-    native\build.cmd                    sam_render-x64.dll, -x86.dll
+    native\build.cmd                    sam_render-x64.dll
     python native\tools\gen_dict.py     native\data\sam.dict
     gui-native\build.cmd x64            sam_gui-x64.exe
-    gui-native\build.cmd x86            sam_gui-x86.exe
+
+x64 only. No 32-bit build of anything is produced; releases up to 1.5.0
+also carried sam_render-x86.dll and sam_gui-x86.exe, and stay as they
+were.
 
 The addon is rebuilt here from source, validated, and then zipped, so
 the archive can never be staler than the tree it was cut from. The C
@@ -49,12 +52,8 @@ ADDON = os.path.join(ROOT, 'nvda-addon', 'sam.nvda-addon')
 INPUTS = [
     (os.path.join(ROOT, 'native', 'build', 'sam_render-x64.dll'),
      r'native\build.cmd'),
-    (os.path.join(ROOT, 'native', 'build', 'sam_render-x86.dll'),
-     r'native\build.cmd'),
     (os.path.join(ROOT, 'gui-native', 'build', 'sam_gui-x64.exe'),
      r'gui-native\build.cmd x64'),
-    (os.path.join(ROOT, 'gui-native', 'build', 'sam_gui-x86.exe'),
-     r'gui-native\build.cmd x86'),
 ]
 
 # What each binary is compiled from. Checked by mtime before packaging:
@@ -72,9 +71,7 @@ GUI_SRC = NATIVE_SRC + [os.path.join(ROOT, 'gui-native', 'sam_gui.cpp'),
 
 SOURCES_OF = {
     'sam_render-x64.dll': NATIVE_SRC,
-    'sam_render-x86.dll': NATIVE_SRC,
     'sam_gui-x64.exe': GUI_SRC,
-    'sam_gui-x86.exe': GUI_SRC,
 }
 
 MANIFEST = os.path.join(ROOT, 'nvda-addon', 'manifest.ini')
@@ -95,14 +92,14 @@ THE NVDA ADDON  --  sam.nvda-addon
     4. Choose "SAM (Software Automatic Mouth)"
 
 Rate, pitch, inflection and volume behave as usual. Mouth, Throat and
-Sing mode are added to the settings ring. Needs NVDA 2023.1 or newer.
+Sing mode are added to the settings ring. Needs 64-bit NVDA 2026.1
+or newer.
 
 
-THE DESKTOP APP  --  sam_gui-x64.exe, sam_gui-x86.exe
+THE DESKTOP APP  --  sam_gui-x64.exe
 
-Run the one that matches your Windows: x64 on a 64-bit system, x86 on
-a 32-bit one. Nothing to install, and it writes no settings outside
-its own window - copy it wherever you like.
+For 64-bit Windows. Nothing to install, and it writes no settings
+outside its own window - copy it wherever you like.
 
 Type text, set Speed, Pitch, Mouth, Throat and Inflection, pick a
 voice preset, then Preview or save a WAV. Phoneme mode takes SAM's own
@@ -218,8 +215,8 @@ def check_versions():
               'manifest.\n')
         for problem in problems:
             print('  %s' % problem)
-        print('\nUpdate gui-native/sam_gui.rc, then rebuild both '
-              'executables.')
+        print('\nUpdate gui-native/sam_gui.rc, then rebuild the '
+              'executable.')
         return False
 
     print('=== addon and executables both say version %s ===\n' % want)
