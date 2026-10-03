@@ -5,14 +5,15 @@ about the rewrite; it is the baseline later work is measured against.
 When something here turns out wrong, it is corrected in place with a dated
 note (*Overtaken 2026-…, §…*), not rewritten silently.
 
-**Status: stage R.0 done and merged (2026-10-03). R.1 is next.**
+**Status: stage R.1 done (2026-10-03). R.2 is next.**
 
 | Step | State | Logged in | Open |
 |---|---|---|---|
 | Survey of the other rewrites in this tree | done 2026-10-03 | §11 | — |
 | Decisions for the author | D1–D5 decided 2026-10-03 | §9 | — |
 | R.0 scaffold and freeze | done 2026-10-03 | [docs/c17/00](c17/00-r0-scaffold.md) | — |
-| R.1 onward | not started | — | — |
+| R.1 tables | done 2026-10-03 | [docs/c17/01](c17/01-r1-tables.md) | — |
+| R.2 onward | not started | — | — |
 
 ---
 
@@ -507,3 +508,18 @@ What turned out different from this plan:
 - **The latency grid of §7** is too noisy under the Balanced power plan
   to support a claim. The 20-word sentence figure (1.64 ms median, real
   time factor 0.0002) is stable, and is the one R.9 compares against.
+
+**2026-10-03 — stage R.1 (Opus 5.5, as the session).** Done on branch
+`c17-r1-tables`. The chapter is [docs/c17/01](c17/01-r1-tables.md).
+What turned out different from this plan, or was added to it:
+
+- **The tables keep SAM's layout and names.** §3.2 lists `tables.c` as
+  generated; nothing more was decided there. The rewrite changed how
+  they are written down (a comment per table, a named constant per
+  size, `--check`), not what they are, per §1.2.
+- **`--check` on both generators.** `native/tools/gen_tables.py` got it
+  too, additively. `native/src` is unchanged.
+- **The mutation driver is shared.** `engine/tools/mutate.py` runs a
+  stage's list from `engine/tools/mutants/<stage>.py` on a scratch copy.
+  Each mutant names the checks that must kill it, and the match has to
+  be exact, so mutants only one check can see are part of the claim.
