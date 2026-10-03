@@ -120,8 +120,10 @@ and the front end, and the results must be identical.
 
 A C17 rewrite of this engine is under way in `engine/`: portable CMake
 builds, no Python idioms in the C, and the same output byte for byte.
-Only the scaffolding exists so far (stage R.0); `native/` is still the
-engine that ships, and is now frozen as the reference. See
+Its renderer is done (stages R.0 to R.4: tables, voice, frames and
+rendering, byte-identical to the Python); the text front end is not yet
+rewritten. `native/` is still the engine that ships, and is now frozen
+as the reference. See
 [docs/c17-rewrite-plan.md](docs/c17-rewrite-plan.md) and
 [docs/c17/](docs/c17/).
 

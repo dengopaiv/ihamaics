@@ -16,7 +16,11 @@ include ctypes overhead, because that is what the driver pays.
 Verification, all byte-for-byte:
 
 - 16 golden vectors, native and Python paths, and against each other
-- 485 randomised phoneme sequences through ctypes
+- 485 randomised phoneme sequences through ctypes (*2026-10-03:* from the
+  next commit on, the Python side of this check delegated to the DLL
+  itself, which went unnoticed until the C17 rewrite's stage R.4; the
+  Python raises on 15 of the 485, and the other 470 still match.
+  See docs/c17/04-r4-renderer.md section 4.1)
 - 3000 randomised cases through sam_prepare_frames, all 8 rows
 - all 65536 (mouth, throat) combinations through sam_set_mouth_throat
 - all 2392 table values, compiled and dumped from C

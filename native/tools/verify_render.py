@@ -76,6 +76,23 @@ def native_render(lib, phoneme_list, p):
     return n, bytes(bytearray(buf[:n]))
 
 
+def fuzz_cases(n):
+    """The n randomised cases of the fuzz, from its fixed seed, as
+    (phoneme_list, params). engine/tools/reach_render.py measures the
+    same ones."""
+    rnd = random.Random(31337)
+    cases = []
+    for _ in range(n):
+        k = rnd.randint(1, 25)
+        pl = [[rnd.randrange(0, 80), rnd.randrange(1, 40), rnd.randrange(0, 10)]
+              for _ in range(k)]
+        p = dict(pitch=rnd.randrange(256), mouth=rnd.randrange(256),
+                 throat=rnd.randrange(256), speed=rnd.choice([1, 20, 72, 150, 255]),
+                 singmode=rnd.random() < 0.3, inflection=rnd.randrange(101))
+        cases.append((pl, p))
+    return cases
+
+
 def main():
     lib = load()
     if lib is None:
@@ -109,18 +126,18 @@ def main():
                   f'first at {diffs[0]} ({actual[diffs[0]]} != {expected[diffs[0]]})')
 
     n_random = int(sys.argv[1]) if len(sys.argv) > 1 else 0
+    skipped = 0
     if n_random:
-        from renderer import render as py_render
-        rnd = random.Random(31337)
+        # renderer.render() hands off to the native library whenever
+        # native.py can load it (native/build/sam_render-x64.dll, if
+        # built), and then this fuzz compares the DLL with itself. Force
+        # the Python path, as check_golden.py does. Found in stage R.4 of
+        # the C17 rewrite (docs/c17/04-r4-renderer.md section 4.1).
+        import renderer
+        renderer.native = None
+        py_render = renderer.render
         fuzz_fail = 0
-        skipped = 0
-        for _ in range(n_random):
-            k = rnd.randint(1, 25)
-            pl = [[rnd.randrange(0, 80), rnd.randrange(1, 40), rnd.randrange(0, 10)]
-                  for _ in range(k)]
-            p = dict(pitch=rnd.randrange(256), mouth=rnd.randrange(256),
-                     throat=rnd.randrange(256), speed=rnd.choice([1, 20, 72, 150, 255]),
-                     singmode=rnd.random() < 0.3, inflection=rnd.randrange(101))
+        for pl, p in fuzz_cases(n_random):
             try:
                 want = bytes(py_render(pl, p['pitch'], p['mouth'], p['throat'],
                                        p['speed'], p['singmode'], p['inflection']))
@@ -143,7 +160,8 @@ def main():
     if failures:
         print(f'{failures} FAILURE(S)')
         return 1
-    print(f'native renderer byte-identical to Python on all {len(specs)} golden cases')
+    print(f'{IMPL} renderer byte-identical to Python on all {len(specs)} golden cases'
+          + (f' and {n_random - skipped} randomised ones' if n_random else ''))
     return 0
 
 

@@ -5,7 +5,7 @@ about the rewrite; it is the baseline later work is measured against.
 When something here turns out wrong, it is corrected in place with a dated
 note (*Overtaken 2026-…, §…*), not rewritten silently.
 
-**Status: stage R.3 done (2026-10-03). R.4 is next.**
+**Status: stage R.4 done (2026-10-03). R.5 is next.**
 
 | Step | State | Logged in | Open |
 |---|---|---|---|
@@ -15,7 +15,8 @@ note (*Overtaken 2026-…, §…*), not rewritten silently.
 | R.1 tables | done 2026-10-03 | [docs/c17/01](c17/01-r1-tables.md) | — |
 | R.2 voice | done 2026-10-03 | [docs/c17/02](c17/02-r2-voice.md) | — |
 | R.3 frames | done 2026-10-03 | [docs/c17/03](c17/03-r3-frames.md) | whether real text reaches Q1 and Q2 (R.9) |
-| R.4 onward | not started | — | — |
+| R.4 renderer | done 2026-10-03 | [docs/c17/04](c17/04-r4-renderer.md) | whether real text reaches Q1–Q3 (R.9); the size query's 50× reservation (R.8) |
+| R.5 onward | not started | — | — |
 
 ---
 
@@ -239,7 +240,7 @@ stage in `docs/c17/`, written as it happens.
 | R.1 | Tables | all 2,392 table values identical (`verify_tables.py`); generators run with `--check` |
 | R.2 | Voice | all 65,536 (mouth, throat) pairs (`verify_frames.py`) |
 | R.3 | Frames | `verify_frames.py`, `verify_prepare.py 3000` (3,000 randomised cases, all 8 rows; the default is 400, see docs/c17/00 §0.1) |
-| R.4 | Renderer | 16 golden vectors byte for byte (`check_golden.py`, `verify_render.py`), and `verify_render.py`'s randomised fuzz against the Python with a count at least the 485 the port passed |
+| R.4 | Renderer | 16 golden vectors byte for byte (`check_golden.py`, `verify_render.py`), and `verify_render.py`'s randomised fuzz against the Python with a count at least the 485 the port passed. *Overtaken 2026-10-03, R.4:* the fuzz had been comparing the DLL with itself; against the Python, 485 cases give 470 comparable ([docs/c17/04](c17/04-r4-renderer.md) §4.1). R.4 ran 3,000 (2,898 comparable) |
 | R.5 | Parser | `verify_parser.py` over the whole dictionary |
 | R.6 | Reciter and numbers | `verify_reciter.py`; `verify_text.py`'s `expand_numbers` part |
 | R.7 | Pipeline | `verify_text.py`, 144,272 cases, with and without the dictionary. The dictionary is read from today's `sam.dict` blob, format unchanged (§6) |
@@ -573,3 +574,37 @@ What turned out different from this plan, or was added to it:
   each differs from the Python only where `native/` was undefined.
 - **The §1.2 example overtaken.** `int16_t` is not provably enough for
   the pitch row (see the note there).
+
+**2026-10-03 — stage R.4 (Opus 5.5, as the session).** Done on branch
+`c17-r4-renderer`. The chapter is [docs/c17/04](c17/04-r4-renderer.md).
+What turned out different from this plan, or was added to it:
+
+- **The exit test's fuzz was hollow.** `renderer.render()` hands off to
+  `native/build/sam_render-x64.dll` whenever it can load it, so
+  `verify_render.py` had compared the DLL with itself since
+  2026-09-06, R.0's baseline included. It now forces the Python path,
+  as `check_golden.py` always did. `native/` still passes, 470 of 470
+  comparable cases. This was the one change to a shared verifier.
+- **`quirks.h` gains Q3.** The glottal pulse counters never wrap, in
+  Python's `int`. A pulse that starts at or falls to 0 or below stays
+  stuck until the utterance ends. 78 of 485 random cases do that; no
+  golden case does.
+- **Four idioms dropped by proof:**
+  - the unbounded phases (only `phase mod 256` reaches the output);
+  - every `pos < n` guard (`pos + frame_count` is the row length);
+  - the sampled-consonant kind −1 and the sample-table guard (the table
+    has only kinds 0–4);
+  - the float arithmetic in `int(sum / 32)` and `int(g * 0.75)`.
+- **`native/` has undefined behaviour on valid input.** Its
+  `int phase * 256` overflows on a long utterance with the pulse stuck,
+  shown by UBSan. The rewrite gives the Python's samples there.
+- **Past the oracle, `native/` is the reference.** Where the Python
+  raises (buffer overflow; Q2 below −len), the rewrite does what
+  `native/` does. `diff_render.py` checks that on 20,000 wide cases.
+- **Sanitizers, as §5 planned, with proof that they fire.**
+  `sanitize.py` runs ASan and UBSan on both Linux compilers over 5,502
+  cases. Two planted bugs, one for each sanitizer, were caught.
+- **`sam_render` renders straight into the caller's buffer** when it
+  covers the size query, and zeroes lazily. The output is unchanged;
+  the speed is not yet measured (R.9). The query itself still reserves
+  50 times what real speech uses. That is left to R.8.

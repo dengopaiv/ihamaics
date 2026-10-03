@@ -55,6 +55,7 @@ set(SAM_SOURCES
     src/tables.c
     src/voice.c
     src/frames.c
+    src/render.c
 )
 
 # The same sources twice: a static library for the tools and tests, and
@@ -80,10 +81,20 @@ if(BUILD_TESTING)
     add_test(NAME abi COMMAND test_abi)
     set_tests_properties(abi PROPERTIES LABELS quick)
 
+    # sam_render's contract, on two golden vectors (stage R.4). Runs on
+    # every leg, so Linux checks golden samples before the verifiers do.
+    add_executable(test_render tests/test_render.c)
+    target_link_libraries(test_render PRIVATE sam_static)
+    target_compile_options(test_render PRIVATE ${SAM_WARNINGS})
+    target_compile_definitions(test_render PRIVATE ${SAM_DEFINES})
+    add_test(NAME render COMMAND test_render
+             "${CMAKE_CURRENT_SOURCE_DIR}/../native/tests/golden")
+    set_tests_properties(render PROPERTIES LABELS quick)
+
     # The dump tools: one per boundary the verifiers check, each printing
     # what its namesake in native/tools prints. They go in the top of the
     # build tree, where native/tools/_build.py looks for them.
-    foreach(tool dump_tables dump_frames dump_prepare)
+    foreach(tool dump_tables dump_frames dump_prepare dump_render)
         add_executable(${tool} tools/${tool}.c)
         target_link_libraries(${tool} PRIVATE sam_static)
         target_include_directories(${tool} PRIVATE src)
