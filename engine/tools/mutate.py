@@ -24,7 +24,9 @@ What it does:
      and puts the files back. A check kills the mutant when it exits
      with anything but 0 (passed) or 77 (skipped, which is reported as
      an error: the check did not run). A mutant that does not build is
-     an error too; every mutant must be a program the checks can see.
+     an error too, unless the mutant expects exactly that: killed_by
+     ('build',) names the compiler as the check, for an edit that a
+     _Static_assert exists to refuse (R.2 has the first).
 
 Each mutant names the checks expected to kill it, and the result must
 match exactly. Mutants that only some checks can see are the point:
@@ -124,6 +126,14 @@ def build(env, build_dir):
     return r.returncode == 0, r.stdout + r.stderr
 
 
+def first_error(log):
+    """The first line of a build log that names an error, for the table."""
+    for line in log.splitlines():
+        if 'error' in line.lower():
+            return line.strip()[:200]
+    return '(no error line in the log)'
+
+
 def run_checks(checks, copy, env):
     """{name: 'pass' | 'fail' | 'skip'} for every check."""
     result = {}
@@ -187,7 +197,11 @@ def main(argv):
             try:
                 ok, log = build(env, build_dir)
                 if not ok:
-                    rows.append((m, None, 'did not build'))
+                    if tuple(m['killed_by']) == ('build',):
+                        rows.append((m, {'build'}, None))
+                    else:
+                        rows.append((m, None, 'did not build: '
+                                     + first_error(log)))
                     continue
                 res = run_checks(stage.CHECKS, copy, env)
             finally:
@@ -211,6 +225,10 @@ def main(argv):
                 print('%-*s  ERROR %s' % (width, m['name'], why))
                 continue
             expect = set(m['killed_by'])
+            if killed == {'build'}:
+                print('%-*s  %s  %s' % (width, m['name'],
+                                        'refused by the compiler', 'ok'))
+                continue
             cells = '  '.join(('killed' if n in killed else 'lived').ljust(len(n))
                               for n in names)
             verdict = 'ok' if killed == expect else 'UNEXPECTED'

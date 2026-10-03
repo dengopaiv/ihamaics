@@ -17,6 +17,8 @@ What this generator adds to that one:
     index it takes, so tables.h can be read without the Python open;
   - every size is a named constant, and the two-dimensional tables are
     declared as what they are;
+  - SAM_FREQ_MAX, the largest formant frequency, so voice.c can prove
+    at compile time that the voice's formants fit in a byte (R.2);
   - --check, which regenerates in memory and fails if either file on
     disk differs. ctest runs it under the label "quick", so a table
     edited by hand, or a Python table changed without regenerating,
@@ -143,6 +145,11 @@ def tables():
     }
 
 
+def freq_max():
+    """The largest formant frequency in any of the three columns."""
+    return max(max(col) for col in columns(rt.FREQUENCY_DATA))
+
+
 def fits(name, ctype, values):
     lo, hi = (-128, 127) if ctype == 'int8_t' else (0, 255)
     bad = [v for v in values if not lo <= v <= hi]
@@ -186,6 +193,11 @@ def generate():
          '#include <stdint.h>\n\n']
     for k, v in consts.items():
         h.append(f'#define {k:<28} {v}\n')
+    h.append('\n' + comment(
+        'The largest value in sam_freq1..3, measured here so the C can\n'
+        'state a bound on it. voice.c relies on it (R.2): the mouth and\n'
+        'throat transform keeps any frequency up to 128 within a byte.')
+        + f'#define {"SAM_FREQ_MAX":<28} {freq_max()}\n')
     for name, ctype, dims, values, text in tabs:
         decl = ''.join(f'[{d}]' for d in dims)
         h.append('\n' + comment(text) + f'extern const {ctype} {name}{decl};\n')

@@ -5,7 +5,7 @@ about the rewrite; it is the baseline later work is measured against.
 When something here turns out wrong, it is corrected in place with a dated
 note (*Overtaken 2026-…, §…*), not rewritten silently.
 
-**Status: stage R.1 done (2026-10-03). R.2 is next.**
+**Status: stage R.2 done (2026-10-03). R.3 is next.**
 
 | Step | State | Logged in | Open |
 |---|---|---|---|
@@ -13,7 +13,8 @@ note (*Overtaken 2026-…, §…*), not rewritten silently.
 | Decisions for the author | D1–D5 decided 2026-10-03 | §9 | — |
 | R.0 scaffold and freeze | done 2026-10-03 | [docs/c17/00](c17/00-r0-scaffold.md) | — |
 | R.1 tables | done 2026-10-03 | [docs/c17/01](c17/01-r1-tables.md) | — |
-| R.2 onward | not started | — | — |
+| R.2 voice | done 2026-10-03 | [docs/c17/02](c17/02-r2-voice.md) | — |
+| R.3 onward | not started | — | — |
 
 ---
 
@@ -523,3 +524,21 @@ What turned out different from this plan, or was added to it:
   stage's list from `engine/tools/mutants/<stage>.py` on a scratch copy.
   Each mutant names the checks that must kill it, and the match has to
   be exact, so mutants only one check can see are part of the claim.
+
+**2026-10-03 — stage R.2 (Opus 5.5, as the session).** Done on branch
+`c17-r2-voice`. The chapter is [docs/c17/02](c17/02-r2-voice.md).
+What turned out different from this plan, or was added to it:
+
+- **The first §1.1 idiom sorted.** `sam_freqdata_t`'s `uint16_t` rows
+  went in "no input reaches it": the largest formant table value is 127,
+  so the scaled values never exceed 170, and a byte holds every one.
+  The bound is a `_Static_assert` on `SAM_FREQ_MAX`, a constant that
+  `gen_tables.py` now writes. The Python's `& 0xFF` is a no-op on byte
+  inputs and is not written.
+- **The mutation driver accepts `killed_by=('build',)`**, so that a
+  `_Static_assert` can be tested. Equivalent mutants are listed with
+  `killed_by=()`. R.2 has two: the dropped mask, and the diphthong range
+  starting at 47, whose phoneme `**` has all three frequencies 0.
+- **The Linux legs compared without the verifiers.** Until R.10, their
+  `dump_frames` output is hashed against the Windows legs'. All four
+  were identical.
